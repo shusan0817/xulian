@@ -1,0 +1,223 @@
+%% 需恋 V2 增量时序图（由 docs/system_design_v2.md §9 提取）
+
+sequenceDiagram
+    autonumber
+    participant U as 用户（浏览器）
+    participant AC as src/api/client.ts
+    participant AR as authRoutes
+    participant AS as authService
+    participant UR as users.repo
+    participant ARp as auth.repo
+    participant DB as SQLite
+
+    Note over U,DB: 场景 A：新用户注册
+    U->>AC: 填邮箱/密码/昵称/出生日期
+    AC->>AR: POST /api/auth/register {email,password,displayName,birthDate}
+    AR->>AS: register(input)
+    AS->>AS: validateEmail / validatePassword(≥8位,含字母+数字)
+    AS->>AS: hashPassword(scryptSync N=16384,r=8,p=1)
+    AS->>UR: adminCreateUser({displayName,timezone})
+    UR->>DB: INSERT users
+    AS->>ARp: insertAuth({userId,email,emailNormalized,passwordHash})
+    ARp->>DB: INSERT user_auth
+    AS->>AS: derive isMinor from birthDate
+    AS->>AS: createSession(userId) → HMAC 签发 token
+    ARp->>DB: INSERT user_sessions(token_hash)
+    AS-->>AR: {user, session}
+    AR-->>AC: 201 {ok:true,data:{user,token,expiresAt}}
+    AC->>AC: localStorage 写 xulian.token
+    AC-->>U: 进入 /
+
+    Note over U,DB: 场景 B：老用户（localStorage 已有匿名 userId）注册
+    U->>AC: 同上，额外带 attachUserId = 匿名 userId
+    AC->>AR: POST /api/auth/register {..., attachUserId}
+    AR->>AS: register(input with attachUserId)
+    AS->>UR: getById(attachUserId)
+    UR-->>AS: user（含角色/记忆/会话）
+    Note right of AS: ★ 复用同一行 users.id<br/>不新建、不迁移 → 数据零丢失
+    AS->>ARp: insertAuth({userId: attachUserId, ...})
+    AS->>UR: updateDisplayName / updateBirthDate
+    AS->>AS: createSession(attachUserId)
+    AS-->>AR: {user, session}
+    AR-->>AC: 201
+    AC-->>U: 进入 /（历史数据全在）
+
+    Note over U,DB: 场景 C：登录
+    U->>AC: 输入邮箱/密码
+    AC->>AR: POST /api/auth/login
+    AR->>AS: login(input)
+    AS->>ARp: findByEmailNormalized(lower(trim(email)))
+    ARp-->>AS: auth row
+    AS->>AS: locked_until 检查 → verifyPassword(timingSafeEqual)
+    alt 密码错误
+        AS->>ARp: bumpFailedAttempts（≥10 → locked_until = now+15min）
+        AS-->>AR: throw 401 E_INVALID_CREDENTIALS
+    else 密码正确
+        AS->>ARp: resetFailedAttempts + insertSession
+        AS-->>AR: {user, session}
+        AR-->>AC: 200 {token}
+    end
+
+    Note over U,DB: 场景 D：每次请求鉴权
+    AC->>AR: GET /api/space/overview<br/>Authorization: Bearer <token>
+    AR->>AS: verifySession(token)
+    AS->>AS: ① HMAC 验签（timingSafeEqual）→ 失败即 401
+    AS->>ARp: findByTokenHash(sha256(token))
+    ARp-->>AS: session row
+    AS->>AS: ② revoked_at IS NULL 且 expires_at > now
+    AS-->>AR: {userId}
+    AR->>AR: req.userId = userId → 继续
+
+sequenceDiagram
+    autonumber
+    participant U as 用户
+    participant CR as chatRoutes
+    participant CS as chatService
+    participant SS as strategyService
+    participant PM as prompts (L0–L8)
+    participant SDK as sdkClient
+    participant TS as topicService
+    participant HS as habitService
+    participant IS as insightService
+    participant StS as storyService
+    participant ETS as emotionTrendService
+    participant SMS as safetyPolicyService
+
+    U->>CR: POST /api/chat/stream {text, characterId, chatMode?}
+    CR->>CS: streamChat(input)
+    CS->>SMS: evaluate({text, direction:'incoming'})
+    SMS-->>CS: {allowed, rule, crisisSignal, minorGuard}
+    CS->>SS: pickStrategy({userEmotion, recentStrategies, blocked, chatMode})
+    Note right of SS: 优先级链 §4.2<br/>crisis > blocked > 用户模式 > AI 自选
+    SS-->>CS: {strategy, reason, modeSource}
+
+    CS->>CS: build ChatContext（新增 chatMode / habits / insights / trendHint / stories）
+    CS->>HS: activeForPrompt(userId, characterId)
+    HS-->>CS: AiHabit[]（仅 status=active）
+    CS->>IS: activeForPrompt(userId, characterId)
+    IS-->>CS: UserInsight[]（全域 + 角色覆盖）
+    CS->>ETS: describe(snapshots) + toStrategyHint()
+    ETS-->>CS: TrendDescription[] + hint 文案（预定义常量，无数字）
+    CS->>StS: list(userId, {limit:3})
+    StS-->>CS: Story[]
+
+    CS->>PM: buildSystemPrompt(ctx)
+    Note right of PM: L0(+§9,+L0b) → L1(+§5) → L1b 🆕 → L2 → L3 → L8
+    CS->>PM: buildUserPrompt(ctx)
+    Note right of PM: L4(+趋势行) → L5(+[s1..s3]) → L6 → L7(重构) → 用户输入
+
+    CS->>SDK: streamText({systemPrompt, userPrompt})
+    SDK-->>CS: 流式 delta
+    CS-->>CR: SSE text 事件
+    CS->>SMS: evaluate({reply, direction:'outgoing'})
+    SMS-->>CS: {safe, text}（未成年时阈值更严）
+
+    CS-->>CR: SSE done
+    CR-->>U: 完整回复
+
+    rect rgb(245,245,250)
+    Note over CS,ETS: ── 后处理（异步容错，失败不影响本轮回复）──
+    CS->>TS: refresh(userId, conversationId)
+    TS->>SDK: completeJson(主题抽取)
+    TS-->>CS: recent_topics 写入 conversations
+
+    CS->>HS: observe({userText, aiReply, ...})
+    HS->>HS: 闸门 A：白名单维度 + 取值域校验
+    HS->>HS: 闸门 B：observation_count++ / confidence 累积
+    HS->>SDK: 闸门 C：is_persona_change 反向校验
+    alt is_persona_change = true
+        HS->>SMS: 记 safety_logs(rule=PERSONA_DRIFT)
+        HS-->>CS: 拒绝写入
+    else passed 且达标
+        HS->>HS: status = active
+        HS->>StS: createFromHabit → 生成 habit_learned 故事
+    end
+
+    CS->>IS: observe({...})
+    CS->>StS: considerExtract({...})
+    StS->>StS: ① containsSensitive? ② source_message_ids 非空? ③ checkOutgoing?
+    StS->>SDK: LLM 判定 is_story / type / title / summary
+    StS-->>CS: Story | null
+
+    CS->>ETS: upsertSnapshot(userId, characterId, day)
+    end
+
+    Note over U,SMS: ── 用户反馈（V2-14）──
+    U->>CR: POST /api/messages/:id/feedback {kind:'report', reason}
+    CR->>SMS: report(userId, messageId, reason)
+    SMS->>SMS: 落 safety_logs(source='user_report', message_id=...)
+    SMS-->>CR: MessageFeedback
+    CR-->>U: 200
+
+sequenceDiagram
+    autonumber
+    participant SCH as scheduler
+    participant DS as decisionService
+    participant TR as trend.repo
+    participant StR as stories.repo
+    participant HR as habits.repo
+    participant IR as insights.repo
+    participant SR as states.repo
+    participant GS as generatorService
+    participant SPS as safetyPolicyService
+    participant NS as notificationService
+
+    SCH->>DS: decide({userId, character, settings, tier, ...})
+    Note right of DS: settings 由 tier 的 vetoParams 覆盖
+
+    rect rgb(255,245,245)
+    Note over DS: ── 第一段：硬否决 V1–V14 ──
+    DS->>DS: V1 disabled / V2 DND / V3 hours / V4 dailyLimit
+    DS->>DS: V5 tooSoon / V6 justTalked / V7 online / V8 pending
+    DS->>DS: V9 noChannel / V11 noInteraction
+    DS->>SPS: minorGuard(userId)
+    SPS-->>DS: {isMinor, quietHours, dailyCap}
+    DS->>DS: V12 未成年+深夜 / V14 未成年日上限
+    DS->>SR: countNegativeOnProactive（近 3 条）
+    DS->>DS: V13 反馈疲劳（≥2 条被嫌 → 冷却 72h）
+    end
+
+    alt 命中任一否决
+        DS-->>SCH: {decision:'skip', reasonCode:'V*'}
+    end
+
+    rect rgb(240,248,255)
+    Note over DS: ── 第二段：10 因子加权打分 ──
+    DS->>DS: ① idleHours ← idleRaw(h, tier.idleCurve)
+    DS->>SR: getLatestUserEmotion
+    SR-->>DS: ② userEmotionNeed
+    DS->>DS: ③ proactivityTier ← TIER_LEVELS[tier]
+    DS->>IR: recent topics + topic_interest
+    IR-->>DS: ④ topicContinuation
+    DS->>DS: ⑤ sinceLastProactive
+    DS->>DS: ⑥ timeOfDay
+    DS->>TR: languageShiftScore（近3天 vs 前3天）
+    TR-->>DS: ⑦ languageShift
+    DS->>SR: getEmotion(AI)
+    SR-->>DS: ⑧ aiEmotion
+    DS->>DS: ⑨ recentProactiveLoad（反向）
+    DS->>StR: 近 7 天新 story / 高 importance memory
+    StR->>HR: 新 active habit
+    HR-->>DS: ⑩ sharedContext
+    DS->>DS: 权重 = BASE × tier.weightMultipliers → 归一化
+    DS->>DS: score = Σ(raw × weight)
+    DS->>DS: threshold = 0.62 + tier.thresholdShift
+    end
+
+    alt score < 0.45 + shift
+        DS-->>SCH: skip / S_LOW_SCORE
+    else score < threshold
+        DS-->>SCH: delay / S_DELAY（45–150 分钟后复评）
+    else score ≥ threshold
+        DS-->>SCH: send
+        SCH->>GS: generateProactiveMessage(...)
+        Note right of GS: ★ 必须带上下文：最近对话 + 记忆 + 故事 + 习惯
+        GS->>SPS: evaluate({text, direction:'proactive'})
+        alt 命中红线
+            SPS-->>GS: 不安全 → 丢弃（不改写）
+            GS-->>SCH: {text:null, blockedReason}
+        else 安全
+            GS-->>SCH: {text}
+            SCH->>NS: notify(userId, text)
+        end
+    end

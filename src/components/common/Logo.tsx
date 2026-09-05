@@ -1,0 +1,45 @@
+/**
+ * 「需恋」Logo（自绘）
+ *
+ * 构成：圆角渐变方块 + 白色心形 + 右下角对话气泡。
+ * 完全手写 SVG，不使用任何第三方品牌资产（需求 §18）。
+ */
+
+export interface LogoProps {
+  size?: number;
+  className?: string;
+}
+
+export function Logo({ size = 40, className = '' }: LogoProps): React.ReactElement {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 64 64"
+      className={className}
+      role="img"
+      aria-label="需恋"
+    >
+      <defs>
+        <linearGradient id="xl-logo-gradient" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#F7C6D2" />
+          <stop offset="100%" stopColor="#B9A7E8" />
+        </linearGradient>
+      </defs>
+      <rect width="64" height="64" rx="18" fill="url(#xl-logo-gradient)" />
+      {/* 心形 */}
+      <path
+        d="M31 45.5C31 45.5 13.5 34.2 13.5 24.2C13.5 18.9 17.7 14.7 22.9 14.7C26.1 14.7 29.1 16.5 30.8 19.2L31 19.5L31.2 19.2C32.9 16.5 35.9 14.7 39.1 14.7C44.3 14.7 48.5 18.9 48.5 24.2C48.5 34.2 31 45.5 31 45.5Z"
+        fill="#FFFFFF"
+        opacity="0.96"
+      />
+      {/* 对话气泡：点题「聊天」 */}
+      <path
+        d="M39 36.5C44.2 36.5 48.5 40.2 48.5 44.8C48.5 46.2 47.4 47.3 46 47.3H42.6L37.5 51.3C37.1 51.6 36.5 51.3 36.5 50.8V47.3C36.5 47.3 36 47.2 35.6 47C34.3 46.3 33.5 45.1 33.5 43.7C33.5 39.6 35.9 36.5 39 36.5Z"
+        fill="#F2A9B8"
+      />
+    </svg>
+  );
+}
+
+export default Logo;

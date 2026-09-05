@@ -1,0 +1,256 @@
+%% 需恋 V2 增量类图（由 docs/system_design_v2.md §10 提取）
+
+classDiagram
+    class User {
+        +string id
+        +string displayName
+        +string timezone
+        +UserSettings settings
+        +NotificationSettings notificationSettings
+        +PrivacySettings privacySettings
+        +string lastSeenAt
+        +string birthDate
+        +boolean isMinor
+        +string ageVerifiedAt
+        +string plan
+        +string planExpiresAt
+        +object quotas
+    }
+
+    class UserAuth {
+        +string userId
+        +string email
+        +string emailNormalized
+        +string phone
+        +string passwordHash
+        +string passwordAlgo
+        +string passwordUpdatedAt
+        +number failedAttempts
+        +string lockedUntil
+    }
+
+    class UserSession {
+        +string id
+        +string userId
+        +string tokenHash
+        +string userAgent
+        +string ipPrefix
+        +string issuedAt
+        +string expiresAt
+        +string lastUsedAt
+        +string revokedAt
+    }
+
+    class AICharacter {
+        +string id
+        +string userId
+        +string name
+        +string personality
+        +StringList personalityTags
+        +string speakingStyle
+        +ReplyLength replyLength
+        +number proactivityLevel
+        +ProactiveTier proactivityTier
+        +ChatMode chatMode
+        +boolean habitLearningEnabled
+        +ProactiveSettings proactiveSettings
+    }
+
+    class Story {
+        +string id
+        +string userId
+        +string characterId
+        +StoryType type
+        +string title
+        +string summary
+        +string autoTitle
+        +string autoSummary
+        +boolean isUserEdited
+        +boolean isUserCreated
+        +number importance
+        +string sourceType
+        +StringList sourceMessageIds
+        +string sourceMemoryId
+        +string sourceHabitId
+        +string happenedAt
+        +boolean pinned
+        +string deletedAt
+    }
+
+    class UserInsight {
+        +string id
+        +string userId
+        +string characterScope
+        +InsightDimension dimension
+        +string value
+        +string valueLabel
+        +number confidence
+        +number observationCount
+        +JsonArray evidence
+        +string source
+        +boolean isUserEdited
+        +InsightStatus status
+        +string deletedAt
+    }
+
+    class AiHabit {
+        +string id
+        +string userId
+        +string characterId
+        +HabitDimension dimension
+        +string value
+        +string valueLabel
+        +number confidence
+        +number observationCount
+        +number missCount
+        +JsonArray evidence
+        +HabitStatus status
+        +boolean userConfirmed
+        +PersonaCheck personaCheck
+        +string personaCheckNote
+        +string storyId
+        +string deletedAt
+    }
+
+    class MessageFeedback {
+        +string id
+        +string userId
+        +string characterId
+        +string conversationId
+        +string messageId
+        +FeedbackKind kind
+        +string reason
+        +boolean handled
+        +string handledAt
+        +string handledNote
+    }
+
+    class TrendSnapshot {
+        +string id
+        +string userId
+        +string characterId
+        +string day
+        +number messageCount
+        +number sessionCount
+        +number avgUserMsgChars
+        +number avgValence
+        +number avgIntensity
+        +number negativeRatio
+        +string dominantEmotion
+    }
+
+    class MemoryItem {
+        +string id
+        +string userId
+        +string characterId
+        +MemoryCategory category
+        +string content
+        +number importance
+        +string sourceMessageId
+        +string sourceKind
+        +string expiresAt
+        +string deletedAt
+        +number revision
+    }
+
+    class Conversation {
+        +string id
+        +string userId
+        +string characterId
+        +string summary
+        +StringList recentTopics
+        +number messageCount
+        +string deletedAt
+    }
+
+    class MessageRecord {
+        +string id
+        +string conversationId
+        +string userId
+        +string characterId
+        +MessageRole role
+        +string content
+        +StrategyType strategy
+        +ChatMode chatMode
+        +boolean isProactive
+        +string deletedAt
+        +number revision
+    }
+
+    %% 服务层
+    class AuthService {
+        +hashPassword(pwd) string
+        +verifyPassword(pwd, stored) bool
+        +register(input) AuthResult
+        +login(input) AuthResult
+        +logout(token) void
+        +verifySession(token) SessionPayload
+    }
+    class StoryService {
+        +ensureFirstChatStory() Story
+        +considerExtract(input) Story
+        +createFromHabit(habit) Story
+        +createByUser(input) Story
+        +renderStoryBlock(stories) string
+    }
+    class HabitService {
+        +observe(input) void
+        +activeForPrompt(uid, cid) List~AiHabit~
+        +renderHabitBlock(habits) string
+        +resetAll(uid, cid) number
+    }
+    class InsightService {
+        +observe(input) void
+        +activeForPrompt(uid, cid) List~UserInsight~
+        +renderInsightBlock(insights) string
+    }
+    class EmotionTrendService {
+        +upsertSnapshot(uid, cid, day) void
+        +describe(snapshots) List~TrendDescription~
+        +toStrategyHint(desc) string
+        +languageShiftScore(uid, cid) number
+        +chart(uid, cid, days) List~TrendPoint~
+    }
+    class FeedbackService {
+        +submit(uid, msgId, input) MessageFeedback
+        +countNegativeOnProactive() number
+    }
+    class SafetyPolicyService {
+        +evaluate(input) PolicyDecision
+        +minorGuard(uid) MinorGuard
+        +report(uid, msgId, reason) MessageFeedback
+    }
+    class TopicService {
+        +refresh(uid, convId) StringList
+        +recent(uid, cid) StringList
+    }
+
+    %% 关系
+    User "1" *-- "0..1" UserAuth : 1:1（注册即复用 users 行）
+    User "1" *-- "0..*" UserSession
+    User "1" *-- "0..*" AICharacter
+    User "1" *-- "0..*" Story
+    User "1" *-- "0..*" UserInsight
+    User "1" *-- "0..*" MessageFeedback
+    AICharacter "1" *-- "0..*" Story
+    AICharacter "1" *-- "0..*" AiHabit
+    AICharacter "1" *-- "0..*" TrendSnapshot
+    AICharacter "1" *-- "0..*" MemoryItem
+    AICharacter "1" *-- "0..*" Conversation
+    Conversation "1" *-- "0..*" MessageRecord
+    MessageRecord "1" *-- "0..*" MessageFeedback : messageId（无 FK，消息删除后反馈留存）
+    AiHabit "1" ..> "0..1" Story : storyId（habit_learned）
+    Story "0..1" ..> "0..*" MessageRecord : sourceMessageIds（溯源）
+    UserInsight "0..1" ..> "0..*" MessageRecord : evidence（溯源）
+
+    AuthService ..> UserAuth : 读写
+    StoryService ..> Story : 读写
+    HabitService ..> AiHabit : 读写
+    InsightService ..> UserInsight : 读写
+    EmotionTrendService ..> TrendSnapshot : 读写
+    FeedbackService ..> MessageFeedback : 读写
+    SafetyPolicyService ..> MessageFeedback : 举报落库
+    TopicService ..> Conversation : recentTopics
+
+    HabitService ..> StoryService : createFromHabit
+    HabitService ..> SafetyPolicyService : PERSONA_DRIFT 记录

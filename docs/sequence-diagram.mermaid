@@ -1,0 +1,242 @@
+%% 「需恋」关键时序图集合
+%% 1) 用户发消息 → 流式回复 → 后处理（情绪/记忆/关系）
+%% 2) 后台主动聊天 Job（Scheduler）
+%% 3) 推送订阅与点击
+
+sequenceDiagram
+    autonumber
+    title ① 用户发消息 → 流式回复 → 后处理
+    participant U as 用户(手机)
+    participant UI as ChatPage/useChat
+    participant API as routes/chatRoutes
+    participant CS as ChatService
+    participant SF as SafetyService
+    participant PS as PersonaService
+    participant ES as EmotionService
+    participant UE as UserEmotionService
+    participant MS as MemoryService
+    participant RS as RelationshipService
+    participant ST as StrategyService
+    participant SDK as agent/sdkClient
+    participant DB as SQLite
+    participant CLI as CodeBuddy CLI
+
+    U->>UI: 输入「真的好累，做不完」
+    UI->>API: POST /api/chat/stream (SSE)
+    API->>CS: streamReply({userId, characterId, text})
+    CS->>DB: INSERT messages(user) + UPDATE conversation
+    CS-->>UI: SSE meta{userMessageId, assistantMessageId}
+    UI->>UI: 渲染用户气泡 + AI「正在输入」
+
+    CS->>SF: checkIncoming(text)
+    alt 命中红线
+        SF-->>CS: {allowed:false, action:'blocked'}
+        CS->>SF: buildRefusal(character)
+        SF-->>CS: 温柔拒绝 + 自然转移话题
+        CS-->>UI: SSE replace{content}
+        CS->>DB: INSERT messages(assistant, strategy='blocked')
+        CS-->>UI: SSE done
+    else 正常
+        CS-->>UI: SSE status{stage:'analyzing'}
+        par 并行预取
+            CS->>PS: get + renderPersonaBlock(character)
+            CS->>ES: getState()（先 decay）
+            CS->>MS: buildShortTermContext(conversationId)
+            CS->>MS: getAnchorMemories()
+        end
+        CS->>UE: analyze(text, recentUserTexts, history)
+        UE->>SDK: 结构化 JSON 调用(用户情绪)
+        SDK->>CLI: spawn node cli/bin/codebuddy
+        CLI-->>SDK: assistant(JSON)
+        SDK-->>UE: {emotion,valence,intensity,intent,shareDepth}
+        UE->>DB: INSERT user_emotion_analyses
+        UE-->>CS: UserEmotionAnalysis
+
+        CS->>MS: retrieve(text)
+        MS-->>CS: memories(top6)
+        CS->>RS: recordInteraction(shareDepth)
+        RS->>DB: UPSERT relationship_states + active_days
+        RS-->>CS: RelationshipState
+        CS-->>UI: SSE relationship{stage, leveledUp}
+        CS->>ST: select(userEmotion, aiEmotion, relationship, recentStrategies)
+        ST-->>CS: {strategy:'listening', hints, forbid}
+        CS-->>UI: SSE strategy{strategy, reason}
+
+        CS->>CS: buildSystemPrompt(L0+L1+L2+L3+L8)<br/>buildContextBlock(L4+L5+L6+L7+本轮输入)
+        CS-->>UI: SSE status{stage:'generating'}
+        CS->>SDK: streamText(prompt, {systemPrompt, model, abortController})
+        SDK->>CLI: spawn node cli/bin/codebuddy --output-format stream-json
+        loop 每条 assistant 消息
+            CLI-->>SDK: {type:'assistant', content:[{type:'text'}]}
+            SDK->>SDK: delta = diff(fullText, lastFullText)
+            SDK-->>CS: yield delta
+            CS-->>UI: SSE text{delta}
+            UI->>UI: 追加渲染 + 自动滚动
+        end
+        CLI-->>SDK: {type:'result', subtype:'success'}
+        SDK-->>CS: 完整文本 + usage
+
+        CS->>SF: checkOutgoing(fullText)
+        alt 违规可替换
+            SF-->>CS: {action:'rewritten', rewritten}
+            CS-->>UI: SSE replace{rewritten}
+        end
+        CS->>DB: INSERT messages(assistant, aiEmotion, strategy, userEmotion, meta)
+
+        CS-->>UI: SSE status{stage:'postprocessing'}
+        CS->>ES: applyTransition(reply, userEmotion, strategy)
+        ES->>SDK: 结构化 JSON 调用(AI 情绪)
+        SDK-->>ES: {emotion:'caring', intensity:0.62, reason}
+        ES->>ES: 单次变化 ≤0.4；沉默只→caring 且 ≤0.35
+        ES->>DB: UPSERT emotion_states
+        ES-->>CS: EmotionState
+        CS-->>UI: SSE emotion{emotion, intensity, reason}
+
+        CS->>MS: shouldExtract ? extract(text, userEmotion) : skip
+        alt 触发抽取
+            MS->>SDK: 结构化 JSON 调用(记忆抽取)
+            SDK-->>MS: {memories:[...]}
+            MS->>MS: dedupe(dedupeKey + bigram Jaccard ≥0.62)
+            MS->>DB: INSERT/UPDATE memories
+            MS-->>CS: newMemories
+            CS-->>UI: SSE memory{action:'added', items}
+        end
+        CS->>MS: compressIfNeeded(conversationId)
+        CS-->>UI: SSE done{messageId, usage}
+    end
+    UI->>UI: isStreaming=false，收起输入指示器
+
+
+sequenceDiagram
+    autonumber
+    title ② 后台主动聊天 Job（Scheduler，每 10 分钟）
+    participant SC as Scheduler
+    participant DB as SQLite
+    participant DS as ProactiveDecisionService
+    participant PS as PersonaService
+    participant ES as EmotionService
+    participant UE as UserEmotionService
+    participant RS as RelationshipService
+    participant MS as MemoryService
+    participant GEN as ProactiveGeneratorService
+    participant SF as SafetyService
+    participant SDK as sdkClient
+    participant NS as NotificationService
+    participant PUSH as Push Service
+    participant SW as Service Worker
+    participant U as 用户
+
+    SC->>DB: listProactiveTargets()
+    loop 每个 (userId, characterId)
+        SC->>DB: tryAcquireRunLock(characterId, windowKey)
+        alt 抢锁失败
+            DB-->>SC: false → 跳过（幂等）
+        else 抢锁成功
+            SC->>DB: findDueScheduledTasks()
+            alt 有到期 delay 任务
+                SC->>DS: decide(ctx) 复评
+                DS-->>SC: send / expired
+            end
+            SC->>DB: 读 settings / 计数 / 最近消息 / heartbeat
+            SC->>PS: get(character)
+            SC->>ES: getState()（decay）
+            SC->>UE: latest()
+            SC->>RS: get() + expressionParams(stage)
+            SC->>MS: retrieve + getAnchorMemories
+            SC->>DS: decide(ctx)
+            DS->>DS: Step1 硬否决 V1..V11
+            alt 命中否决
+                DS-->>SC: {decision:'skip', reasonCode:'dnd'}
+                SC->>DB: INSERT task(status='skipped', reasonCode, score, factors)
+            else 无否决
+                DS->>DS: Step2 七因子加权打分
+                alt score < 0.45
+                    DS-->>SC: skip
+                    SC->>DB: INSERT task(status='skipped')
+                else 0.45 ≤ score < 0.62
+                    DS-->>SC: delay, delayMinutes
+                    SC->>DB: INSERT task(status='scheduled', scheduled_at)
+                else score ≥ 0.62 → send
+                    DS-->>SC: send
+                    SC->>DB: INSERT task(status='sending')
+                    SC->>GEN: generate(ctx + intent)
+                    GEN->>SDK: 结构化 JSON 调用(主动消息)
+                    SDK-->>GEN: {content, intent:'follow_up'}
+                    GEN->>SF: checkOutgoing(content, {isProactive:true})
+                    alt 命中 GUILT_TRIP / DEPENDENCY / IDENTITY_FAKE / REAL_WORLD_CLAIM
+                        SF-->>GEN: {allowed:false}
+                        GEN-->>SC: 丢弃（★ 不重试生成，记 safety_logs）
+                        SC->>DB: task(status='failed', last_error='safety:GUILT_TRIP')
+                    else 通过
+                        SF-->>GEN: {allowed:true}
+                        GEN-->>SC: content
+                        SC->>DB: INSERT messages(assistant, is_proactive=1, is_read=0)
+                        SC->>DB: bumpDailyCounter(userId, characterId, day)
+                        SC->>ES: applyTransition(caring, cap 0.35)
+                        SC->>NS: send({userId, title, body, url, tag})
+                        NS->>DB: SELECT push_subscriptions
+                        loop 每个订阅
+                            NS->>PUSH: webpush.sendNotification
+                            alt 404/410 Gone
+                                PUSH-->>NS: Gone
+                                NS->>DB: DELETE push_subscriptions
+                            else 201 Created
+                                PUSH-->>NS: Created
+                            end
+                        end
+                        alt 全失败且可重试
+                            NS-->>SC: {ok:false, retryable:true}
+                            SC->>DB: scheduleRetry(退避 1/5/15min, attempts+1)
+                        else 成功
+                            NS-->>SC: {ok:true}
+                            SC->>DB: task(status='sent', message_id)
+                            PUSH->>SW: push 事件
+                            SW->>U: showNotification(character.name, content)
+                        end
+                    end
+                end
+            end
+            SC->>DB: proactive_runs.status='done'
+        end
+    end
+    U->>SW: 点击通知
+    SW->>SW: notification.close() + clients.openWindow('/chat?c=..&m=..')
+    U->>SC: 打开 App → GET /api/proactive/inbox → POST /api/proactive/ack
+
+
+sequenceDiagram
+    autonumber
+    title ③ 推送订阅与点击
+    participant U as 用户
+    participant UI as SettingsPage/usePush
+    participant API as routes/pushRoutes
+    participant DB as SQLite
+    participant SW as Service Worker
+    participant BR as 浏览器 Push Service
+
+    U->>UI: 打开「允许推送通知」开关
+    UI->>API: GET /api/push/vapid-public-key
+    API-->>UI: {publicKey}
+    UI->>SW: navigator.serviceWorker.register('/sw.js')
+    SW-->>UI: registration
+    UI->>UI: Notification.requestPermission()
+    alt 用户拒绝
+        UI->>UI: 开关回弹 + 说明如何开启
+    else 用户同意
+        UI->>SW: pushManager.subscribe({userVisibleOnly:true, applicationServerKey})
+        SW->>BR: 订阅请求
+        BR-->>SW: PushSubscription{endpoint, keys}
+        SW-->>UI: subscription
+        UI->>API: POST /api/push/subscribe
+        API->>DB: INSERT OR REPLACE push_subscriptions
+        API-->>UI: {ok, subscriptionId}
+        U->>UI: 点「发一条测试通知」
+        UI->>API: POST /api/push/test
+        API->>BR: webpush.sendNotification
+        BR->>SW: push 事件
+        SW->>U: showNotification('需恋', '测试消息')
+        U->>SW: 点击通知
+        SW->>SW: clients.openWindow('/chat?c=xxx&m=yyy')
+    end
+    Note over UI,API: 关闭推送 → DELETE /api/push/unsubscribe
+    Note over API: Scheduler 收到 404/410 → 自动清理失效订阅

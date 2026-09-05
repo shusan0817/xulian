@@ -1,0 +1,381 @@
+classDiagram
+    %% ========== 领域模型（shared/types.ts）==========
+    class User {
+        +string id
+        +string displayName
+        +string timezone
+        +string locale
+        +UserSettings settings
+        +NotificationSettings notificationSettings
+        +PrivacySettings privacySettings
+        +string lastSeenAt
+        +string createdAt
+        +string updatedAt
+    }
+
+    class AICharacter {
+        +string id
+        +string userId
+        +string name
+        +AvatarSpec avatar
+        +string personality
+        +string[] personalityTags
+        +string speakingStyle
+        +string[] interests
+        +string[] likedTopics
+        +string[] dislikedTopics
+        +RelationshipType relationshipType
+        +string userNickname
+        +ReplyLength replyLength
+        +number emotionSensitivity
+        +EmotionType initialEmotion
+        +RelationshipStage initialStage
+        +number proactivityLevel
+        +boolean proactiveEnabled
+        +ProactiveSettings proactiveSettings
+        +boolean isDefault
+    }
+
+    class Conversation {
+        +string id
+        +string userId
+        +string characterId
+        +string title
+        +string summary
+        +string summaryUpdatedTo
+        +number messageCount
+        +string lastMessageAt
+    }
+
+    class Message {
+        +string id
+        +string conversationId
+        +string userId
+        +string characterId
+        +string role
+        +string content
+        +EmotionType aiEmotion
+        +number aiEmotionIntensity
+        +StrategyType strategy
+        +UserEmotionType userEmotion
+        +boolean isProactive
+        +boolean isRead
+        +MessageMeta meta
+        +string createdAt
+    }
+
+    class MemoryItem {
+        +string id
+        +string userId
+        +string characterId
+        +MemoryCategory category
+        +string content
+        +string dedupeKey
+        +number importance
+        +boolean isSensitive
+        +number hitCount
+        +string lastUsedAt
+    }
+
+    class EmotionState {
+        +string id
+        +string userId
+        +string characterId
+        +EmotionType currentEmotion
+        +number intensity
+        +number valence
+        +number arousal
+        +string emotionReason
+        +string lastDecayAt
+    }
+
+    class UserEmotionAnalysis {
+        +string id
+        +string userId
+        +string characterId
+        +string messageId
+        +UserEmotionType emotion
+        +number valence
+        +number intensity
+        +number confidence
+        +string trend
+        +ChatIntent intent
+        +boolean needsComfort
+        +string crisisSignal
+        +StrategyType suggestedStrategy
+        +number shareDepth
+        +string[] reasons
+    }
+
+    class RelationshipState {
+        +string id
+        +string userId
+        +string characterId
+        +RelationshipStage stage
+        +number interactionLevel
+        +number messageScore
+        +number activeDayScore
+        +number memoryScore
+        +number shareDepthScore
+        +number totalUserMessages
+        +number distinctActiveDays
+        +RelationshipStage floorStage
+    }
+
+    class ProactiveMessageTask {
+        +string id
+        +string userId
+        +string characterId
+        +string status
+        +string decision
+        +number score
+        +string reasonCode
+        +DecisionDetail reasonDetail
+        +string scheduledAt
+        +string messageId
+        +number attempts
+    }
+
+    class PushSubscription {
+        +string id
+        +string userId
+        +string endpoint
+        +string p256dh
+        +string auth
+    }
+
+    class SafetyLog {
+        +string id
+        +string userId
+        +string direction
+        +string rule
+        +string action
+        +string severity
+        +string excerpt
+    }
+
+    %% ========== 服务层（server/services）==========
+    class ChatService {
+        +streamReply(params) AsyncGenerator~ChatSseEvent~
+        +regenerate(params) AsyncGenerator~ChatSseEvent~
+        -buildSystemPrompt(ctx) string
+        -buildContextBlock(ctx) string
+    }
+
+    class PersonaService {
+        +create(userId, input) AICharacter
+        +get(userId, characterId) AICharacter
+        +list(userId) AICharacter[]
+        +update(userId, id, patch) AICharacter
+        +remove(userId, id) void
+        +presets() CharacterPreset[]
+        +renderPersonaBlock(c) string
+        +idealGapHours(c) number
+        +emotionTauMinutes(c) number
+    }
+
+    class EmotionService {
+        +getState(userId, characterId) EmotionState
+        +applyTransition(userId, characterId, input) Promise~EmotionState~
+        +resetState(userId, characterId, emotion) EmotionState
+        -decay(state, character, now) EmotionState
+        -ruleTransition(input) Candidate
+        -llmCalibrate(input) Promise~Candidate~
+    }
+
+    class UserEmotionService {
+        +analyze(input) Promise~UserEmotionAnalysis~
+        +latest(userId, characterId) UserEmotionAnalysis
+        +recent(userId, characterId, limit) UserEmotionAnalysis[]
+        -crisisDetect(text) string
+        -ruleScore(text) RuleResult
+        -llmAnalyze(texts, rule) Promise~LlmResult~
+        -computeTrend(history) string
+    }
+
+    class StrategyService {
+        +select(input) StrategyDecision
+    }
+
+    class MemoryService {
+        +buildShortTermContext(conversationId, opts) Promise~ShortTermContext~
+        +compressIfNeeded(conversationId) Promise~void~
+        +extract(userId, characterId, ...) Promise~MemoryItem[]~
+        +retrieve(userId, characterId, query, opts) MemoryItem[]
+        +getAnchorMemories(userId, characterId, limit) MemoryItem[]
+        +markUsed(ids) void
+        +list(userId, characterId, filter) MemoryItem[]
+        +create(userId, characterId, input) MemoryItem
+        +update(userId, memoryId, patch) MemoryItem
+        +remove(userId, memoryId) void
+        +clearAll(userId, characterId) number
+        +renderMemoryBlock(items) string
+        -shouldExtract(text, uea) boolean
+        -dedupe(items) MemoryItem[]
+    }
+
+    class RelationshipService {
+        +get(userId, characterId) RelationshipState
+        +recordInteraction(userId, characterId, input) RelationshipState
+        +expressionParams(stage) ExpressionParams
+    }
+
+    class SafetyService {
+        +checkIncoming(text) SafetyVerdict
+        +checkOutgoing(text, ctx) SafetyVerdict
+        +buildRefusal(character, category) Promise~string~
+        +buildCrisisResponse(character) Promise~string~
+        +constitution() string
+        +log(entry) void
+    }
+
+    class NotificationService {
+        <<interface>>
+        +send(payload) Promise~SendResult[]~
+        +saveSubscription(userId, sub) Promise~void~
+        +removeSubscription(userId, endpoint) Promise~void~
+        +vapidPublicKey() string
+    }
+
+    class WebPushNotificationService {
+        +send(payload) Promise~SendResult[]~
+        +saveSubscription(userId, sub) Promise~void~
+        +removeSubscription(userId, endpoint) Promise~void~
+        +vapidPublicKey() string
+        -pruneInvalid(results) Promise~void~
+    }
+
+    class ProactiveDecisionService {
+        +decide(ctx) DecisionResult
+        +explain(userId, characterId) DecisionResult
+        -checkVeto(ctx) string
+        -score(ctx) FactorBreakdown
+    }
+
+    class ProactiveGeneratorService {
+        +generate(ctx) Promise~GeneratedProactive~
+        -pickIntent(ctx) ProactiveIntent
+    }
+
+    class Scheduler {
+        +start() void
+        +stop() void
+        +tick() Promise~TickReport~
+        -processDueTasks(userId, characterId) Promise~void~
+        -doSend(ctx, task) Promise~void~
+        -scheduleRetry(task, delayMs, err) void
+    }
+
+    %% ========== Agent 适配层（server/agent）==========
+    class SdkClient {
+        +streamText(opts) AsyncGenerator~TextDelta~
+        +completeText(opts) Promise~StreamTextResult~
+        -buildQuery(opts) Query
+        -buildEnv() Record
+    }
+
+    class CliResolver {
+        +resolveCliPath() string
+        +resolveSandboxCwd() string
+    }
+
+    class Prompts {
+        +SAFETY_CONSTITUTION string
+        +personaBlock(c) string
+        +relationshipBlock(r) string
+        +emotionBlock(e) string
+        +userStateBlock(uea) string
+        +memoryBlock(items) string
+        +strategyBlock(d) string
+        +outputContract() string
+        +emotionCalibrationPrompt() string
+        +userEmotionPrompt() string
+        +memoryExtractPrompt() string
+        +summaryCompressPrompt() string
+        +proactiveGeneratePrompt() string
+    }
+
+    %% ========== 数据访问层（server/db）==========
+    class Database {
+        <<singleton>>
+        +pragma(settings) void
+        +exec(sql) void
+        +prepare(sql) Statement
+        +transaction(fn) Function
+    }
+
+    class Repositories {
+        <<module>>
+        +usersRepo
+        +charactersRepo
+        +conversationsRepo
+        +memoriesRepo
+        +statesRepo
+        +proactiveRepo
+        +pushRepo
+        +safetyRepo
+    }
+
+    %% ========== 关系 ==========
+    User "1" *-- "0..*" AICharacter : owns
+    User "1" *-- "0..*" Conversation : owns
+    User "1" *-- "0..*" MemoryItem : owns
+    User "1" *-- "0..*" PushSubscription : owns
+    User "1" *-- "0..*" SafetyLog : generates
+    AICharacter "1" *-- "0..*" Conversation : has
+    AICharacter "1" *-- "1" EmotionState : has current
+    AICharacter "1" *-- "1" RelationshipState : has
+    AICharacter "1" *-- "0..*" MemoryItem : remembers
+    AICharacter "1" *-- "0..*" ProactiveMessageTask : triggers
+    Conversation "1" *-- "0..*" Message : contains
+    Message "1" <-- "0..1" UserEmotionAnalysis : analyzes
+    ProactiveMessageTask "0..1" --> "0..1" Message : produces
+
+    ChatService ..> PersonaService : uses
+    ChatService ..> EmotionService : uses
+    ChatService ..> UserEmotionService : uses
+    ChatService ..> StrategyService : uses
+    ChatService ..> MemoryService : uses
+    ChatService ..> RelationshipService : uses
+    ChatService ..> SafetyService : uses
+    ChatService ..> SdkClient : uses
+    ChatService ..> Prompts : uses
+
+    StrategyService ..> UserEmotionService : reads
+    StrategyService ..> RelationshipService : reads
+    EmotionService ..> PersonaService : reads
+    EmotionService ..> SdkClient : llm calibrate
+    UserEmotionService ..> SdkClient : llm analyze
+    MemoryService ..> SdkClient : llm extract/summarize
+
+    ProactiveDecisionService ..> PersonaService : reads
+    ProactiveDecisionService ..> EmotionService : reads
+    ProactiveDecisionService ..> UserEmotionService : reads
+    ProactiveDecisionService ..> MemoryService : reads
+    ProactiveDecisionService ..> RelationshipService : reads
+
+    Scheduler ..> ProactiveDecisionService : uses
+    Scheduler ..> ProactiveGeneratorService : uses
+    Scheduler ..> NotificationService : uses
+    Scheduler ..> EmotionService : updates
+    ProactiveGeneratorService ..> PersonaService : reads
+    ProactiveGeneratorService ..> EmotionService : reads
+    ProactiveGeneratorService ..> MemoryService : reads
+    ProactiveGeneratorService ..> RelationshipService : reads
+    ProactiveGeneratorService ..> SafetyService : checks
+    ProactiveGeneratorService ..> SdkClient : generates
+
+    NotificationService <|.. WebPushNotificationService : implements
+
+    SdkClient ..> CliResolver : uses
+    SdkClient ..> Prompts : uses
+
+    PersonaService ..> Repositories : persists
+    EmotionService ..> Repositories : persists
+    UserEmotionService ..> Repositories : persists
+    MemoryService ..> Repositories : persists
+    RelationshipService ..> Repositories : persists
+    ChatService ..> Repositories : persists
+    SafetyService ..> Repositories : persists
+    Scheduler ..> Repositories : persists
+    Repositories ..> Database : uses

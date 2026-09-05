@@ -1,0 +1,40 @@
+{
+  "name": "需恋",
+  "short_name": "需恋",
+  "description": "一個記得你、也懂你的 AI 陪伴角色",
+  "start_url": "/xulian/",
+  "scope": "/xulian/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#FBFAFC",
+  "theme_color": "#FBFAFC",
+  "lang": "zh-Hant",
+  "dir": "ltr",
+  "categories": ["lifestyle", "social"],
+  "icons": [
+    {
+      "src": "/xulian/logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/xulian/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/xulian/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/xulian/icon-512-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

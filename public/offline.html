@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#FBFAFC" />
+    <title>需恋 · 暂时离线</title>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      body {
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        padding: 32px;
+        font-family: system-ui, -apple-system, 'PingFang TC', 'Microsoft JhengHei', sans-serif;
+        background: #fbfafc;
+        color: #2b2733;
+        text-align: center;
+      }
+      .mark {
+        width: 64px;
+        height: 64px;
+        border-radius: 18px;
+        background: linear-gradient(135deg, #f7c6d2, #b9a7e8);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 30px;
+      }
+      h1 { font-size: 18px; font-weight: 600; }
+      p { font-size: 13px; line-height: 1.7; color: #7a7288; max-width: 280px; }
+      button {
+        margin-top: 8px;
+        padding: 10px 22px;
+        border: none;
+        border-radius: 20px;
+        background: #f2a9b8;
+        color: #fff;
+        font-size: 15px;
+        cursor: pointer;
+      }
+      button:active { background: #e07e93; }
+    </style>
+  </head>
+  <body>
+    <div class="mark">💗</div>
+    <h1>暫時連不上</h1>
+    <p>網路似乎斷掉了。重新連上之後，我會在這裡等你。</p>
+    <button onclick="location.reload()">重新載入</button>
+  </body>
+</html>

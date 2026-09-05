@@ -1,0 +1,1 @@
+{"ok":false,"error":{"code":"E_PASSWORD_WEAK","message":"密碼至少要 8 個字","details":{"field":"password"}}}

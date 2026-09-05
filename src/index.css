@@ -1,0 +1,240 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================
+   需恋主题变量
+   组件只写 var(--xl-*)，浅色/深色切换只改这一处。
+   （Tailwind 的 preflight 已关闭，避免与自定义 reset 冲突）
+   ============================================================ */
+:root {
+  --xl-bg: #fbfafc;
+  --xl-card: #ffffff;
+  --xl-ink: #2b2733;
+  --xl-sub: #7a7288;
+  --xl-mist: #efeaf6;
+  --xl-blush: #f2a9b8;
+  --xl-blush-deep: #e07e93;
+  --xl-lilac: #b9a7e8;
+  --xl-mint: #8fd3c7;
+  --xl-amber: #ffb86b;
+
+  --xl-ai-bubble: #ffffff;
+  --xl-ai-bubble-ink: #2b2733;
+  --xl-user-bubble: #f2a9b8;
+  --xl-user-bubble-ink: #ffffff;
+
+  --xl-shadow: 0 2px 12px rgba(43, 39, 51, 0.06);
+
+  /* 安全区：iPhone 底部 Home Indicator / 顶部刘海 */
+  --xl-safe-top: env(safe-area-inset-top, 0px);
+  --xl-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --xl-safe-left: env(safe-area-inset-left, 0px);
+  --xl-safe-right: env(safe-area-inset-right, 0px);
+}
+
+.dark {
+  --xl-bg: #1b1822;
+  --xl-card: #262231;
+  --xl-ink: #f3f0f7;
+  --xl-sub: #a79fb6;
+  --xl-mist: #332e40;
+  --xl-blush: #e88fa3;
+  --xl-blush-deep: #d67c90;
+  --xl-lilac: #a794e0;
+  --xl-mint: #77c3b7;
+  --xl-amber: #f0a95c;
+
+  --xl-ai-bubble: #262231;
+  --xl-ai-bubble-ink: #f3f0f7;
+  --xl-user-bubble: #d67c90;
+  --xl-user-bubble-ink: #ffffff;
+
+  --xl-shadow: 0 2px 12px rgba(0, 0, 0, 0.28);
+}
+
+/* ============================================================
+   基础重置（移动端优先）
+   ============================================================ */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  width: 100%;
+}
+
+html {
+  /* 禁止整页橡皮筋滚动，聊天页自己管滚动 */
+  overscroll-behavior-y: none;
+}
+
+body {
+  font-family:
+    system-ui, -apple-system, 'PingFang TC', 'Microsoft JhengHei', 'Noto Sans TC', sans-serif;
+  background-color: var(--xl-bg);
+  color: var(--xl-ink);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition:
+    background-color 0.3s,
+    color 0.3s;
+}
+
+input,
+textarea,
+button {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+  border: none;
+  background: none;
+  padding: 0;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* ============================================================
+   移动端外壳
+   ============================================================ */
+
+/* 桌面浏览器预览时呈现手机边框；真机上就是满屏 */
+.xl-phone {
+  width: 100%;
+  max-width: 480px;
+  height: 100%;
+  margin: 0 auto;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background: var(--xl-bg);
+  overflow: hidden;
+}
+
+@media (min-width: 768px) {
+  body {
+    background: #efeaf6;
+  }
+
+  .xl-phone {
+    height: min(880px, 92vh);
+    margin-top: max(0px, calc((100vh - min(880px, 92vh)) / 2));
+    border-radius: 36px;
+    box-shadow:
+      0 0 0 10px #2b2733,
+      0 0 0 12px #4a4458,
+      0 24px 60px rgba(43, 39, 51, 0.28);
+  }
+}
+
+.xl-safe-bottom {
+  padding-bottom: calc(var(--xl-safe-bottom) + 8px);
+}
+
+.xl-safe-top {
+  padding-top: var(--xl-safe-top);
+}
+
+/* 隐藏滚动条但保留滚动（聊天列表更干净） */
+.xl-no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.xl-no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* ============================================================
+   小组件
+   ============================================================ */
+
+/* 流式输出的光标：只是一条会闪的竖线 */
+.xl-cursor::after {
+  content: '';
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  background: var(--xl-blush);
+  animation: blink 1s infinite;
+}
+
+@keyframes blink {
+  0%,
+  50% {
+    opacity: 1;
+  }
+  51%,
+  100% {
+    opacity: 0;
+  }
+}
+
+/* 正在输入的三点 */
+.xl-typing-dot {
+  animation: typingDot 1.4s infinite ease-in-out;
+}
+
+@keyframes typingDot {
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.45;
+  }
+  30% {
+    transform: translateY(-4px);
+    opacity: 1;
+  }
+}
+
+/* 卡片/弹层入场 */
+.xl-fade-up {
+  animation: fadeUp 0.24s ease-out;
+}
+
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.xl-pop-in {
+  animation: popIn 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes popIn {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* iOS 输入框聚焦时不缩放页面（16px 是 Safari 的分界线） */
+.xl-input {
+  font-size: 16px;
+}

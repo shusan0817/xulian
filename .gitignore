@@ -1,0 +1,45 @@
+# ===== 依赖 =====
+node_modules/
+.pnp
+.pnp.js
+
+# ===== 构建产物 =====
+dist/
+dist-ssr/
+build/
+*.local
+.vite/
+
+# ===== 环境变量（含密钥，绝不提交）=====
+.env
+.env.local
+.env.*.local
+
+# ===== 运行时数据 =====
+server/data/
+*.db
+*.db-shm
+*.db-wal
+server/.agent-sandbox/
+data/
+
+# ===== 日志 =====
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ===== 编辑器 / 系统 =====
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+
+# ===== TypeScript 增量缓存 =====
+*.tsbuildinfo
+vite.config.d.ts
+vite.config.js

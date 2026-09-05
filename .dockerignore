@@ -1,0 +1,17 @@
+node_modules
+dist
+.env
+.env.*
+*.log
+.server.log
+server.log
+db-backup
+.db-backup-*
+.tmp-e2e
+.git
+.gitignore
+docs
+*.tsbuildinfo
+vite.config.ts.timestamp-*
+coverage
+.DS_Store
