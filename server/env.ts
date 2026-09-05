@@ -171,7 +171,14 @@ export const env: Env = {
   aiTimeoutMs: int('AI_TIMEOUT_MS', 120_000),
 
   // ---- 云端 LLM（OpenAI 兼容，用于免費公網部署）----
-  aiProvider: (str('AI_PROVIDER', 'ollama') as 'ollama' | 'openai') ?? 'ollama',
+  // 未显式设置 AI_PROVIDER 时，若已配置 OPENAI_API_KEY 则自动选用云端 LLM（Groq/Gemini 等），
+  // 否则回落本地 Ollama。避免「只填了云端 Key 却忘了设 AI_PROVIDER=openai」导致默认走 Ollama
+  // （Render / Hugging Face 等无 Ollama 的环境会 AI 連不上）。
+  aiProvider: ((): 'ollama' | 'openai' => {
+    const p = str('AI_PROVIDER', '').trim().toLowerCase();
+    if (p === 'openai' || p === 'ollama') return p;
+    return str('OPENAI_API_KEY', '') ? 'openai' : 'ollama';
+  })(),
   openaiBaseUrl: str('OPENAI_BASE_URL', 'https://api.groq.com/openai/v1'),
   openaiApiKey: str('OPENAI_API_KEY'),
   openaiModel: str('OPENAI_MODEL', 'llama-3.3-70b-versatile'),
