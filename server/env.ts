@@ -172,12 +172,14 @@ export const env: Env = {
 
   // ---- 云端 LLM（OpenAI 兼容，用于免費公網部署）----
   // 未显式设置 AI_PROVIDER 时，若已配置 OPENAI_API_KEY 则自动选用云端 LLM（Groq/Gemini 等），
-  // 否则回落本地 Ollama。避免「只填了云端 Key 却忘了设 AI_PROVIDER=openai」导致默认走 Ollama
-  // （Render / Hugging Face 等无 Ollama 的环境会 AI 連不上）。
+  // 云端 Key 已配置 → 一律走 openai（云端部署意图明确）。
+  // 旧模板把 AI_PROVIDER 默认写成 ollama，若在 Render/HF 上未改，会导致去连本地
+  // Ollama（localhost:11434 不存在）→ 聊天报 E_AI_UNAVAILABLE。故这里以「有没有 Key」为准。
   aiProvider: ((): 'ollama' | 'openai' => {
     const p = str('AI_PROVIDER', '').trim().toLowerCase();
+    if (str('OPENAI_API_KEY', '').trim()) return 'openai';
     if (p === 'openai' || p === 'ollama') return p;
-    return str('OPENAI_API_KEY', '') ? 'openai' : 'ollama';
+    return 'ollama';
   })(),
   openaiBaseUrl: str('OPENAI_BASE_URL', 'https://api.groq.com/openai/v1'),
   openaiApiKey: str('OPENAI_API_KEY'),
@@ -248,18 +250,16 @@ export function validateEnv(): EnvIssue[] {
       message: '未設定 OPENAI_API_KEY：使用雲端 LLM 時必須提供免費的 Groq/Gemini API Key。',
     });
   }
-  // 关键反模式：设了云端 Key 却仍走本地 Ollama（通常是 AI_PROVIDER 被显式设为 ollama，
-  // 或旧模板把 AI_PROVIDER 默认值写成 ollama）。在 Render / Hugging Face 等无 Ollama 的云端
-  // 环境，这会导致 fetch localhost:11434 被拒 → 聊天报 E_AI_UNAVAILABLE。
-  if (env.aiProvider === 'ollama' && Boolean(env.openaiApiKey)) {
+  // 关键反模式：用户显式设了 AI_PROVIDER=ollama，但又配了云端 Key。
+  // 这种情况程序已自动改用 openai（见 aiProvider 取值逻辑），这里只做提示，
+  // 让用户知道「为什么设了 ollama 却走了云端」。
+  if (str('AI_PROVIDER', '').trim().toLowerCase() === 'ollama' && Boolean(env.openaiApiKey)) {
     issues.push({
-      level: 'error',
+      level: 'warn',
       key: 'AI_PROVIDER',
       message:
-        '檢測到 OPENAI_API_KEY 已設定，但 AI_PROVIDER=ollama 會強制走本地 Ollama' +
-        '（云端 Key 被忽略）。在 Render / Hugging Face 等云端环境沒有 Ollama，AI 會連不上。' +
-        '若要使用 Groq 等雲端 LLM，請將 AI_PROVIDER 設為 openai，或直接刪除該變數' +
-        '（程式會自動從 OPENAI_API_KEY 推断使用 openai）。',
+        '檢測到 AI_PROVIDER=ollama，但因已設定 OPENAI_API_KEY，程式已自動改用 openai（雲端 LLM）。' +
+        '若確實想用本地 Ollama，請移除 OPENAI_API_KEY。',
     });
   }
   if (!env.vapidPublicKey || !env.vapidPrivateKey) {
