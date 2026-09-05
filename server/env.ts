@@ -181,8 +181,11 @@ export const env: Env = {
   })(),
   openaiBaseUrl: str('OPENAI_BASE_URL', 'https://api.groq.com/openai/v1'),
   openaiApiKey: str('OPENAI_API_KEY'),
-  openaiModel: str('OPENAI_MODEL', 'llama-3.3-70b-versatile'),
-  openaiLightModel: str('OPENAI_LIGHT_MODEL', 'llama-3.1-8b-instant'),
+  // ⚠️ 注意：Groq 已于 2026-08-16 下线 llama-3.3-70b-versatile 与 llama-3.1-8b-instant
+  // （免费/开发者层）。若 Render/HF 没显式设置 OPENAI_MODEL，请用下列在役替代模型，
+  // 否则 AI 会直接报 E_AI_UNAVAILABLE / E_AI_MODEL_MISSING。
+  openaiModel: str('OPENAI_MODEL', 'openai/gpt-oss-120b'),
+  openaiLightModel: str('OPENAI_LIGHT_MODEL', 'openai/gpt-oss-20b'),
 
   rateLimitUserPerMin: int('RATE_LIMIT_USER_PER_MIN', 12),
   rateLimitIpPerMin: int('RATE_LIMIT_IP_PER_MIN', 40),
@@ -243,6 +246,20 @@ export function validateEnv(): EnvIssue[] {
       level: 'warn',
       key: 'OPENAI_API_KEY',
       message: '未設定 OPENAI_API_KEY：使用雲端 LLM 時必須提供免費的 Groq/Gemini API Key。',
+    });
+  }
+  // 关键反模式：设了云端 Key 却仍走本地 Ollama（通常是 AI_PROVIDER 被显式设为 ollama，
+  // 或旧模板把 AI_PROVIDER 默认值写成 ollama）。在 Render / Hugging Face 等无 Ollama 的云端
+  // 环境，这会导致 fetch localhost:11434 被拒 → 聊天报 E_AI_UNAVAILABLE。
+  if (env.aiProvider === 'ollama' && Boolean(env.openaiApiKey)) {
+    issues.push({
+      level: 'error',
+      key: 'AI_PROVIDER',
+      message:
+        '檢測到 OPENAI_API_KEY 已設定，但 AI_PROVIDER=ollama 會強制走本地 Ollama' +
+        '（云端 Key 被忽略）。在 Render / Hugging Face 等云端环境沒有 Ollama，AI 會連不上。' +
+        '若要使用 Groq 等雲端 LLM，請將 AI_PROVIDER 設為 openai，或直接刪除該變數' +
+        '（程式會自動從 OPENAI_API_KEY 推断使用 openai）。',
     });
   }
   if (!env.vapidPublicKey || !env.vapidPrivateKey) {
