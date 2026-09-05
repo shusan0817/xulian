@@ -15,9 +15,8 @@
 // GitHub Pages 只能托管静态前端，后端单独跑在 HF Spaces；
 // 把“未设置 VITE_API_BASE_URL 时的默认值”直接指向 HF 后端，
 // 这样公开测试版打开即为可用状态，无需再依赖 GitHub Secret（API_BASE_URL）。
-// ⚠️ 请把下面占位符替换成你自己的 Space 真实网址：
-//    https://<你的HF用户名>-xulian.hf.space
-const HF_BACKEND_URL = 'https://你的HF后端网址.hf.space';
+// 真实 Hugging Face Space 后端网址（已替换占位符，2026-09-05）。
+const HF_BACKEND_URL = 'https://shusan0817-xulian.hf.space';
 
 export const API_BASE: string = (
   (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? HF_BACKEND_URL
