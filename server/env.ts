@@ -71,6 +71,10 @@ function buildCorsOrigins(): string[] {
   if (str('NODE_ENV', 'development') !== 'production') {
     list.push('http://localhost:5173', 'http://127.0.0.1:5173');
   }
+  // 公开测试版前端托管在 GitHub Pages（https://shusan0817.github.io/xulian/）。
+  // 浏览器从 github.io 跨域请求本 Render 后端时，必须放行该来源，否则 API 会被浏览器拦截
+  // （即使后端本身正常，前端也会报“连接不上伺服器”）。CORS_ORIGIN 仍可追加其它来源（逗号分隔）。
+  list.push('https://shusan0817.github.io');
   return Array.from(new Set(list));
 }
 
