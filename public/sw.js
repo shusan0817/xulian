@@ -9,7 +9,7 @@
  * 不缓存 /api 请求——聊天内容是实时数据，缓存会导致用户看到旧消息。
  */
 
-const CACHE_NAME = 'xulian-shell-v2';
+const CACHE_NAME = 'xulian-shell-v3';
 // 用相对 scope 的路径（SW 自身位于 /xulian/sw.js，所以 './' = '/xulian/'），
 // 不要写死根路径 '/' 或 '/index.html'，否则在 GitHub Pages 子路径下会缓存错页。
 const SHELL_ASSETS = ['./', './index.html', './manifest.webmanifest'];
