@@ -6,7 +6,6 @@
  */
 
 import { Router } from 'express';
-import { env } from '../env.js';
 import { metaRoutes } from './metaRoutes.js';
 import { authRoutes } from './authRoutes.js';
 import { userRoutes } from './userRoutes.js';
@@ -15,7 +14,6 @@ import { chatRoutes } from './chatRoutes.js';
 import { memoryRoutes } from './memoryRoutes.js';
 import { proactiveRoutes } from './proactiveRoutes.js';
 import { pushRoutes } from './pushRoutes.js';
-import { debugRoutes } from './debugRoutes.js';
 
 export const apiRoutes = Router();
 
@@ -42,10 +40,5 @@ apiRoutes.use('/proactive', proactiveRoutes);
 
 // ---- 推送与在线状态 ----
 apiRoutes.use('/push', pushRoutes);
-
-// ---- 调试（仅 ENABLE_DEBUG_ROUTES=true 时挂载；生产请关闭，避免泄露 env 信息）----
-if (env.enableDebugRoutes) {
-  apiRoutes.use('/debug', debugRoutes);
-}
 
 export { metaRoutes };
