@@ -164,6 +164,36 @@ API 走同源相对路径，无需 CORS。
 
 ---
 
+## 四-B、前端 Service Worker 发布规范（子路径部署必读，否则「刷新无效」）
+
+本应用注册了 Service Worker（`public/sw.js`，由 `src/main.tsx` 在 production 注册，
+作用域 `/xulian/`），用于离线兜底与 Web Push。**它曾在发布后造成「用户硬刷新也没用、
+一直看到旧页面」的脏缓存事故**，根因如下，发布时务必遵守：
+
+### 铁律
+1. **改 `public/sw.js`（或任何外壳/资源策略）后，必须把 `CACHE_NAME` 版本号 +1**
+   （`xulian-shell-v1` → `v2` → `v3`…）。`activate` 只删除「名字 ≠ 当前版本」的缓存，
+   若版本号不变，旧的、引用已失效 JS 的 App 外壳将**永远不被清除**。
+2. **路径必须相对 scope，绝不写死根路径**：应用部署在 `/xulian/` 子路径，
+   `SHELL_ASSETS` 用 `['./', './index.html', './manifest.webmanifest']`，
+   离线兜底用 `caches.match('./index.html')`。写 `/` 或 `/index.html` 会缓存/回退到
+   GitHub 根目录页（错页）。
+3. **SW 注册必须带 BASE_URL**：用 `navigator.serviceWorker.register(
+   import.meta.env.BASE_URL + 'sw.js')`，不要写 `/sw.js`（会注册到根 scope，错误）。
+4. **`activate` 里 `caches.delete` 所有 ≠ 当前 `CACHE_NAME` 的缓存**，并在末尾
+   `self.clients.claim()`，确保新 SW 立即接管、旧缓存被清。
+5. 请求拦截保持**网络优先**（`fetch(request).catch(() => 缓存兜底)`），保证拿到最新资源；
+   但 `/api/` 与 SSE 一律不缓存。
+
+### 发布后验证（本机沙箱注意）
+- 验证一律走线上 CDN：`https://shusan0817.github.io/xulian/sw.js`，
+  确认 `CACHE_NAME` 已是新版本、`SHELL_ASSETS` 为 `./` 相对路径。
+- `raw.githubusercontent.com` 在本机常不稳（curl 报 write error），不要依赖它判断。
+- 若用户仍卡旧页：DevTools → Application → Service Workers → **Unregister**，
+  或 Storage → **Clear site data** 一次即可，之后正常。
+
+---
+
 ## 五、还需要你提供/决定的事项（我不会替你编造）
 
 - **服务器**：你是否有 VPS / 可部署的 PaaS（Railway / Render / Fly.io）？还是先用本机
