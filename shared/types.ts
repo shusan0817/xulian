@@ -8,6 +8,7 @@
  */
 
 import type {
+  ChatMode,
   EmotionType,
   FeedbackKind,
   HabitDimension,
@@ -232,6 +233,10 @@ export interface MessageMeta {
   safetyFlags?: string[];
   /** 用户聊天意图 */
   intent?: string;
+  /** 本轮生效的聊天模式（消息留痕） */
+  chatMode?: ChatMode;
+  /** 模式来源：用户选定 / AI 自选 / 系统接管 */
+  modeSource?: 'user' | 'ai' | 'system';
 }
 
 export type MessageRole = 'user' | 'assistant';

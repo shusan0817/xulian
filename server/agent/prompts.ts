@@ -25,7 +25,12 @@
  */
 
 import type { ChatContext } from '../types.js';
-import type { ChatMode, EmotionType, StrategyType } from '../../shared/constants.js';
+import type {
+  ChatMode,
+  EmotionType,
+  HabitDimension,
+  StrategyType,
+} from '../../shared/constants.js';
 import {
   CHAT_MODE_REGISTRY,
   EMOTION_ANCHORS,
@@ -35,7 +40,7 @@ import {
   STRATEGY_META,
   USER_CHAT_MODES,
 } from '../../shared/constants.js';
-import type { AICharacter } from '../../shared/types.js';
+import type { AICharacter, AiHabit } from '../../shared/types.js';
 import { pickCrisisResource, renderCrisisLine } from '../config/crisisLines.js';
 import { PROMPT_V2_FLAGS } from '../config/defaults.js';
 
@@ -141,7 +146,7 @@ export function buildPersonaLayer(character: AICharacter): string {
     ? character.dislikedTopics.join('、')
     : '（尚未設定）';
 
-  return `## 你是誰
+  const base = `## 你是誰
 
 - 名字：${character.name}
 - 你是使用者的${relationLabel(character.relationshipType)}
@@ -189,20 +194,11 @@ ${disliked}（使用者提到時，不要說教，自然地帶開即可）
 // L1b 習得的相處方式（V2-4 人格隔离：核心人格 vs 后天习惯）
 // ============================================================
 
-/** 习惯维度（白名单，闭合取值域，见设计 §4.3 闸门 A） */
-export type HabitDimension =
-  | 'address_style'
-  | 'reply_pacing'
-  | 'question_style'
-  | 'topic_preference'
-  | 'shared_ritual';
+/** 习惯维度复用 shared 里的白名单（设计 §4.3 闸门 A，单一数据源） */
+export type { HabitDimension } from '../../shared/constants.js';
 
-/** 进入 Prompt 的一条习惯（由 habitService 提供，只含已 active 的条目） */
-export interface HabitPromptItem {
-  dimension: HabitDimension;
-  /** 已格式化的繁中短句，如「用暱稱叫他：小宇」 */
-  valueLabel: string;
-}
+/** 进入 Prompt 的一条习惯：`AiHabit` 的最小投影，habitService 可直接传 `AiHabit[]` */
+export type HabitPromptItem = Pick<AiHabit, 'dimension' | 'valueLabel'>;
 
 const HABIT_DIMENSION_LABEL: Record<HabitDimension, string> = {
   address_style: '稱呼方式',
@@ -418,7 +414,9 @@ function modeLengthOverride(ctx: ChatContext): string | null {
 // L4 用户情绪（可解释）
 // ============================================================
 
-export function buildUserEmotionLayer(ctx: ChatContext['userEmotion']): string {
+export function buildUserEmotionLayer(
+  ctx: ChatContext['userEmotion'] & { trendHint?: string },
+): string {
   const trendText: Record<typeof ctx.trend, string> = {
     improving: '正在好轉',
     stable: '大致平穩',

@@ -18,6 +18,12 @@ export const STRATEGY_USER_LABELS: Record<StrategyType, string> = {
   topic_change: '換個話題',
   crisis_care: '認真聽你說',
   blocked: '換個話題',
+  // ---- V2：9 种聊天模式新增的 5 个策略（与 shared/constants 的 userLabel 一致）----
+  organize_thoughts: '陪你理清楚',
+  study_buddy: '陪你讀書',
+  share_joy: '一起開心',
+  quiet_company: '靜靜陪著',
+  story_chat: '一起編故事',
 };
 
 /** 生成阶段提示文案 */

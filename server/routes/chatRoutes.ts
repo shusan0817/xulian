@@ -10,7 +10,7 @@
 
 import { Router } from 'express';
 import { ErrorCode } from '../../shared/errors.js';
-import { MAX_USER_INPUT_LENGTH } from '../../shared/constants.js';
+import { MAX_USER_INPUT_LENGTH, normalizeChatMode } from '../../shared/constants.js';
 import { ApiError, asyncHandler } from '../errors.js';
 import {
   endSse,
@@ -68,6 +68,12 @@ chatRoutes.post(
     const conversationId = typeof body.conversationId === 'string' ? body.conversationId : undefined;
     const clientMessageId = typeof body.clientMessageId === 'string' ? body.clientMessageId : undefined;
 
+    // V2-8：本轮聊天模式。不传或非法值 → 服务端回落到角色设置 / auto
+    const chatMode =
+      typeof body.chatMode === 'string' && body.chatMode.trim()
+        ? normalizeChatMode(body.chatMode.trim())
+        : undefined;
+
     initSseResponse(res);
 
     const controller = new AbortController();
@@ -87,7 +93,7 @@ chatRoutes.post(
     try {
       logger.info('[Chat] AI request started', { userId, characterId });
       const events = streamChat(
-        { userId, characterId, conversationId, text, clientMessageId },
+        { userId, characterId, conversationId, text, clientMessageId, chatMode },
         {
           getCharacter: (uid, cid) => personaService.getCharacter(uid, cid),
           getPrivacy: (uid) => {

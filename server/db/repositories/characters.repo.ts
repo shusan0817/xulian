@@ -21,7 +21,7 @@ import type {
   ProactiveSettings,
   UpdateCharacterInput,
 } from '../../../shared/types.js';
-import { RELATIONSHIP_TYPES, REPLY_LENGTHS, EMOTION_TYPES, RELATIONSHIP_STAGES, PROACTIVE_DEFAULTS } from '../../../shared/constants.js';
+import { RELATIONSHIP_TYPES, REPLY_LENGTHS, EMOTION_TYPES, RELATIONSHIP_STAGES, PROACTIVE_DEFAULTS, normalizeChatMode } from '../../../shared/constants.js';
 
 // ============================================================
 // 行 → 实体
@@ -63,6 +63,8 @@ export interface CharacterRow {
   slider_rationality: number;
   slider_listening: number;
   custom_description: string;
+  /** V2：聊天模式（迁移 v2 新增列，老库可能为 NULL） */
+  chat_mode?: string | null;
   is_default: number;
   created_at: string;
   updated_at: string;
@@ -124,6 +126,8 @@ export function rowToCharacter(row: CharacterRow): AICharacter {
     sliderRationality: row.slider_rationality ?? 0.5,
     sliderListening: row.slider_listening ?? 0.5,
     customDescription: row.custom_description ?? '',
+    // 脏数据 / 老库 NULL 一律回落 'auto'，绝不让非法值进 Prompt
+    chatMode: row.chat_mode ? normalizeChatMode(row.chat_mode) : 'auto',
     isDefault: row.is_default === 1,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -315,6 +319,7 @@ export function update(
     );
   }
   if (patch.isDefault !== undefined) push('is_default', patch.isDefault ? 1 : 0);
+  if (patch.chatMode !== undefined) push('chat_mode', normalizeChatMode(patch.chatMode));
 
   if (fields.length === 0) return current;
 

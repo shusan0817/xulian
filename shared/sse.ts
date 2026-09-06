@@ -10,7 +10,13 @@
  * 之所以不用 EventSource：聊天接口是 POST，EventSource 只支持 GET。
  */
 
-import type { EmotionType, MemoryCategory, RelationshipStage, StrategyType } from './constants';
+import type {
+  ChatMode,
+  EmotionType,
+  MemoryCategory,
+  RelationshipStage,
+  StrategyType,
+} from './constants';
 
 /** 生成阶段：前端据此显示陪伴感文案（「正在感受…」） */
 export type SseStage = 'safety' | 'analyzing' | 'retrieving' | 'generating' | 'postprocessing';
@@ -38,8 +44,14 @@ export type ChatSseEvent =
   | { type: 'text'; content: string }
   /** 安全改写 / 中断兜底：用完整文本替换已输出内容 */
   | { type: 'replace'; content: string }
-  /** 策略选定 */
-  | { type: 'strategy'; strategy: StrategyType; reason: string }
+  /** 策略选定（V2：附带本轮生效的聊天模式与模式来源，供前端展示模式 chip） */
+  | {
+      type: 'strategy';
+      strategy: StrategyType;
+      reason: string;
+      chatMode?: ChatMode;
+      modeSource?: 'user' | 'ai' | 'system';
+    }
   /** AI 情绪更新（后处理结束） */
   | { type: 'emotion'; emotion: EmotionType; intensity: number; reason: string }
   /** 抽到新记忆 */

@@ -7,6 +7,8 @@
 
 import { Router } from 'express';
 import {
+  CHAT_MODE_LIST,
+  CHAT_MODE_REGISTRY,
   EMOTION_LIST,
   MEMORY_CATEGORY_LIST,
   STAGE_LIST,
@@ -79,6 +81,35 @@ metaRoutes.get(
       },
     };
     ok(res, body);
+  }),
+);
+
+/**
+ * V2-8：9 种聊天模式。前端模式选择器的数据来源（不做假 UI，数据一律来自后端真值）。
+ *
+ * 返回 10 项 = 9 种用户可选模式 + auto（AI 自选），
+ * 全部由 `CHAT_MODE_REGISTRY` 单一数据源派生，新增模式不需要改这里。
+ */
+metaRoutes.get(
+  '/chat-modes',
+  asyncHandler((_req, res) => {
+    ok(res, {
+      modes: [
+        {
+          mode: 'auto',
+          label: CHAT_MODE_REGISTRY.auto.label,
+          desc: CHAT_MODE_REGISTRY.auto.desc,
+          isDefault: true,
+        },
+        ...CHAT_MODE_LIST.map((m) => ({
+          mode: m.mode,
+          label: m.label,
+          desc: m.desc,
+          userLabel: m.userLabel,
+          isDefault: false,
+        })),
+      ],
+    });
   }),
 );
 

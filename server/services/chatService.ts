@@ -21,7 +21,8 @@ import type { ChatSseEvent } from '../../shared/sse.js';
 import { SSE_STAGE_LABELS } from '../../shared/sse.js';
 import type { AICharacter, Conversation, MessageRecord, MemoryItem } from '../../shared/types.js';
 import type { ChatContext } from '../types.js';
-import type { StrategyType } from '../../shared/constants.js';
+import type { ChatMode, StrategyType } from '../../shared/constants.js';
+import { normalizeChatMode } from '../../shared/constants.js';
 
 import { buildSystemPrompt, buildUserPrompt } from '../agent/prompts.js';
 import { streamText } from '../agent/sdkClient.js';
@@ -70,6 +71,10 @@ export async function* streamChat(
   }
 
   const privacy = deps.getPrivacy(userId);
+
+  // V2-8：聊天模式。优先级 = 本轮请求 > 角色持久设置 > auto。
+  // 非法值由 normalizeChatMode 兜底为 'auto'，绝不让脏数据进 Prompt。
+  const chatMode: ChatMode = normalizeChatMode(input.chatMode ?? character.chatMode ?? 'auto');
 
   // ---------- 1. 入方向安全检查 ----------
   yield stageEvent('safety');
@@ -165,12 +170,21 @@ export async function* streamChat(
     userEmotion,
     recentStrategies,
     blocked: !incoming.allowed,
+    chatMode,
   });
 
-  yield { type: 'strategy', strategy: decision.strategy, reason: decision.reason };
+  yield {
+    type: 'strategy',
+    strategy: decision.strategy,
+    reason: decision.reason,
+    chatMode: decision.chatMode,
+    modeSource: decision.modeSource,
+  };
   logger.info('[Chat] 策略選定', {
     characterId,
     strategy: decision.strategy,
+    chatMode: decision.chatMode,
+    modeSource: decision.modeSource,
     reason: decision.reason,
     userEmotion: userEmotion.emotion,
     valence: userEmotion.valence.toFixed(2),
@@ -203,6 +217,11 @@ export async function* streamChat(
     },
     relationship,
     strategy: decision.strategy,
+    // ---- V2：聊天模式 ----
+    chatMode: decision.chatMode,
+    modeSource: decision.modeSource,
+    needsVariation: decision.needsVariation,
+    isMinor: usersRepo.getById(userId)?.isMinor === true,
   };
 
   const systemPrompt = buildSystemPrompt(ctx);
@@ -283,6 +302,8 @@ export async function* streamChat(
       memoryRefs: memories.map((m) => m.id),
       safetyFlags: outgoing.violations.length ? outgoing.violations : undefined,
       intent: userEmotion.intent,
+      chatMode: decision.chatMode,
+      modeSource: decision.modeSource,
     },
   });
 
