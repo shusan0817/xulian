@@ -403,6 +403,37 @@ export const CONTEXT_CONFIG = {
   summaryMaxChars: 800,
 } as const;
 
+// ============================================================
+// V2 Prompt 灰度开关（设计 §7.5 措施 4）
+//
+// L7 是「模式真正改变回复策略」的唯一落地点，改动最激进，所以每个层
+// 都有独立开关。出问题时**只改环境变量就能逐层回滚，不用改代码、不用回版本**。
+//
+// 全部关闭 = V1 行为（回归基线）。可用环境变量覆盖，例如：
+//   PROMPT_V2_MODE_LAYER=0 npx tsx server/index.ts
+// ============================================================
+
+/** 读取布尔型环境变量：未设置时用默认值；'0'/'false'/'off'/'no' 视为关 */
+function flagFromEnv(name: string, defaultValue: boolean): boolean {
+  const raw = process.env[name];
+  if (raw === undefined || raw.trim() === '') return defaultValue;
+  const v = raw.trim().toLowerCase();
+  return !(v === '0' || v === 'false' || v === 'off' || v === 'no');
+}
+
+export const PROMPT_V2_FLAGS = {
+  /** L0 §9 + L1 §5 + L1b「習得的相處方式」 */
+  habitLayer: flagFromEnv('PROMPT_V2_HABIT_LAYER', true),
+  /** L0b 未成年保护段 */
+  minorGuard: flagFromEnv('PROMPT_V2_MINOR_GUARD', true),
+  /** L4 用户状态里的近期趋势行 */
+  trendInUserState: flagFromEnv('PROMPT_V2_TREND_IN_USER_STATE', true),
+  /** L5 记忆层里的故事引用 [s1]..[s3] */
+  storyInMemory: flagFromEnv('PROMPT_V2_STORY_IN_MEMORY', true),
+  /** L7 四段式重构 + L8 模式化长度覆盖（★ V2-8 的落地点） */
+  modeLayer: flagFromEnv('PROMPT_V2_MODE_LAYER', true),
+};
+
 /** 记忆分类列表（供 /api/config 与记忆管理页使用） */
 export const MEMORY_CATEGORY_KEYS: MemoryCategory[] = [...MEMORY_CATEGORIES];
 

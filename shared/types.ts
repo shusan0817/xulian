@@ -402,6 +402,13 @@ export type SafetyDirection = 'incoming' | 'outgoing' | 'proactive';
 export type SafetyAction = 'blocked' | 'rewritten' | 'flagged' | 'crisis';
 export type SafetySeverity = 'info' | 'warn' | 'block';
 
+/**
+ * 安全日志来源（V2-14）。
+ * - `system`      ：规则引擎自动拦截
+ * - `user_report` ：用户主动举报
+ */
+export type SafetyLogSource = 'system' | 'user_report';
+
 export interface SafetyLog {
   id: string;
   userId: string | null;
@@ -413,6 +420,15 @@ export interface SafetyLog {
   excerpt: string;
   detail: Record<string, unknown>;
   createdAt: string;
+  /**
+   * 可定位到原文的消息 ID（V2-14 D2 ALTER）。
+   * 举报必须带它，否则安全同学拿到一条日志却找不到被举报的那句话。
+   */
+  messageId?: string | null;
+  /** 所属会话（配合 messageId 定位上下文） */
+  conversationId?: string | null;
+  /** 来源：system（规则自动）| user_report（用户举报） */
+  source?: SafetyLogSource;
 }
 
 // ============================================================

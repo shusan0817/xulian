@@ -22,7 +22,9 @@ import type {
   MemoryCategory,
   RelationshipStage,
   StrategyType,
+  ChatMode,
 } from '../shared/constants.js';
+import type { HabitPromptItem } from './agent/prompts.js';
 
 // ============================================================
 // 运行期上下文
@@ -62,8 +64,29 @@ export interface ChatContext {
     shareDepth: number;
     reasons: string[];
   };
+  /** 用户情绪分析里的近期趋势提示（定性文案，无分数）；由 emotionTrendService 提供 */
+  trendHint?: string;
+  /** 供 L5 引用的故事（≤3 条生效）；由 stories 服务提供 */
+  stories?: Array<{ id: string; title: string }>;
   relationship: RelationshipState;
   strategy: StrategyType;
+
+  // ---- V2：聊天模式（设计 §4） ----
+  /** 本轮生效的聊天模式；auto = AI 自选。默认 'auto' 以保持向后兼容 */
+  chatMode?: ChatMode;
+  /**
+   * 模式来源：
+   * - user   = 用户主动选定（优先级链第 3 级）
+   * - ai     = auto 模式下的 AI 自选（第 4 级）
+   * - system = 危机 / 安全拦截接管（第 1、2 级，不可被用户覆盖）
+   */
+  modeSource?: 'user' | 'ai' | 'system';
+  /** 同一模式连用到上限 → 只在 L7 追加「换個說法」，不切走模式 */
+  needsVariation?: boolean;
+  /** L1b：已 active 的后天习惯（核心人格与后天习惯隔离） */
+  habits?: HabitPromptItem[];
+  /** 未成年用户（L0b 未成年保护段） */
+  isMinor?: boolean;
 }
 
 // ============================================================
@@ -210,6 +233,11 @@ export interface ChatStreamInput {
   conversationId?: string;
   text: string;
   clientMessageId?: string;
+  /**
+   * 本轮聊天模式。不传时回落到角色身上的持久设置（ai_characters.chat_mode），
+   * 再没有则 'auto'。非法值一律按 'auto' 处理。
+   */
+  chatMode?: ChatMode;
 }
 
 export interface NotificationPayload {

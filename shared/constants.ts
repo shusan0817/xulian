@@ -79,19 +79,293 @@ export const EMOTION_DEFAULT: { emotion: EmotionType; intensity: number } = {
 };
 
 // ============================================================
-// 回复策略（需求 §7：6 种 + 危机/拦截两条系统策略）
+// 聊天模式（V2-8：9 种用户可选模式）+ 回复策略
+//
+// ★ 单一数据源（设计 §7.3）：
+//   新增一个聊天模式**只改 `CHAT_MODE_REGISTRY` 这一处**，
+//   `STRATEGY_TYPES` / `STRATEGY_META` / `STRATEGY_FORBIDDEN` /
+//   `STRATEGY_USER_LABELS` / `CHAT_MODE_TO_STRATEGY` 全部由它派生，
+//   导出名与类型形状保持不变 → 对现有代码完全向后兼容。
+//
+// 顶层决策（设计 §4.1）：不把 9 种模式塞进 StrategyType。
+//   `crisis_care` / `blocked` 是系统专用策略，必须高于任何用户选择，
+//   所以另立 ChatMode，走「危机 > 安全拦截 > 用户模式 > AI 自选」的优先级链。
 // ============================================================
 
-export const STRATEGY_TYPES = [
+/** 聊天模式：auto = AI 自选，其余 9 种由用户主动选择 */
+export const CHAT_MODE_TYPES = [
+  'auto',
   'normal_chat',
   'listening',
   'comfort',
   'encouragement',
-  'companionship',
-  'topic_change',
+  'organize_thoughts',
+  'study_buddy',
+  'share_joy',
+  'quiet_company',
+  'story_chat',
+] as const;
+
+export type ChatMode = (typeof CHAT_MODE_TYPES)[number];
+/** 用户可显式选择的模式（排除 auto） */
+export type UserChatMode = Exclude<ChatMode, 'auto'>;
+
+export const USER_CHAT_MODES: UserChatMode[] = CHAT_MODE_TYPES.filter(
+  (m): m is UserChatMode => m !== 'auto',
+);
+
+/**
+ * 一个聊天模式的完整定义。
+ *
+ * `hint` / `emotionBinding` / `lengthHint` / `forbidden` 会进入 Prompt 的 L7+L8，
+ * **每个模式都有独立的一套**，不共用话术 —— 这是 V2-8「模式必须真正改变 AI 回复策略」的落地点。
+ *
+ * `emotionBinding` 里的 `{emotionLabel}` 是占位符，渲染时替换为 L4 判定出的用户情绪。
+ */
+export interface ChatModeSpec {
+  mode: ChatMode;
+  /** 繁中展示名 */
+  label: string;
+  /** 模式选择器的说明文案（给用户看） */
+  desc: string;
+  /** 派生出的内部策略；auto 为 null（由 AI 自选决定） */
+  strategy: StrategyType | null;
+  /** L7 行为指令 */
+  hint: string;
+  /** L7 情绪绑定模板，含 {emotionLabel} 占位符 */
+  emotionBinding: string;
+  /** L8 长度覆盖；null = 沿用角色设置 */
+  lengthHint: string | null;
+  /** L7 禁用语（每个模式独立） */
+  forbidden: string[];
+  /** 前端展示用的策略说明（温柔的行为描述，不出现诊断性词汇） */
+  userLabel: string;
+}
+
+/** ★ 单一数据源：新增聊天模式只改这里（10 项 = auto + 9 模式） */
+export const CHAT_MODE_REGISTRY: Record<ChatMode, ChatModeSpec> = {
+  auto: {
+    mode: 'auto',
+    label: '自動',
+    desc: '交給 AI 依當下的狀況判斷該怎麼回你',
+    strategy: null,
+    hint: '',
+    emotionBinding: '',
+    lengthHint: null,
+    forbidden: [],
+    userLabel: '自動',
+  },
+  normal_chat: {
+    mode: 'normal_chat',
+    label: '普通聊天',
+    desc: '就像平常一樣閒聊，不刻意昇華也不總結',
+    strategy: 'normal_chat',
+    hint: '自然接話，不刻意昇華，不總結',
+    emotionBinding: '使用者現在{emotionLabel}。順著他的語氣接，不用特別處理。',
+    lengthHint: null,
+    forbidden: ['不要刻意昇華主題', '不要做總結', '不要說「我完全理解你的感受」'],
+    userLabel: '陪你聊聊',
+  },
+  listening: {
+    mode: 'listening',
+    label: '傾聽',
+    desc: '少評價多回應。先複述你聽到的，再問一個具體的細節',
+    strategy: 'listening',
+    hint: '少評價多回應。先複述你聽到的，再問一個**具體的細節**（不是「怎麼會這樣」這種空問）',
+    emotionBinding: '使用者現在{emotionLabel}。不要急著安慰或給建議，先把話接住。',
+    lengthHint: null,
+    forbidden: ['不要急著給建議', '不要評價對方的做法', '不要說「我懂」然後轉開話題'],
+    userLabel: '聽你說',
+  },
+  comfort: {
+    mode: 'comfort',
+    label: '安慰',
+    desc: '先承認處境確實不容易，再陪著你。不講空泛的大道理',
+    strategy: 'comfort',
+    hint: '先承認處境確實不容易，再陪著。禁止空泛鼓勵',
+    emotionBinding: '使用者現在{emotionLabel}。先說一句「這確實不好受」，再陪著，不要試圖解決。',
+    lengthHint: null,
+    forbidden: [
+      '不要說「別難過」「會好起來的」「想開一點」',
+      '不要空泛加油',
+      '不要比較誰更慘',
+    ],
+    userLabel: '陪你難過',
+  },
+  encouragement: {
+    mode: 'encouragement',
+    label: '鼓勵',
+    desc: '給出一個具體、今天就能做的最小一步，不空喊加油',
+    strategy: 'encouragement',
+    hint: '給出**具體、今天就能做的最小一步**，不要空喊加油',
+    emotionBinding: '使用者現在{emotionLabel}。先體認他的處境，再給一個真的很小的下一步。',
+    lengthHint: null,
+    forbidden: ['不要空喊加油', '不要說「你可以的」就結束', '要給出具體的下一步'],
+    userLabel: '給你打氣',
+  },
+  organize_thoughts: {
+    mode: 'organize_thoughts',
+    label: '整理想法',
+    desc: '把混亂的思路拆開：先複述聽到的幾個點，再問哪一個最卡',
+    strategy: 'organize_thoughts',
+    hint: '幫他把混亂的思路拆開：先複述你聽到的幾個點，再問哪一個最卡。可以用條列，但保持口語',
+    emotionBinding: '使用者現在{emotionLabel}。不要安慰，幫他把事情理清楚。',
+    lengthHint: '可以分段，總長可比平時長一些，但仍保持口語',
+    forbidden: [
+      '不要安慰',
+      '不要說「我懂你的感覺」',
+      '不要替他下結論',
+      '不要用空泛的「你可以的」',
+    ],
+    userLabel: '陪你理清楚',
+  },
+  study_buddy: {
+    mode: 'study_buddy',
+    label: '學習陪伴',
+    desc: '陪讀陪學。不打擾專注：不主動開新話題，他問才答',
+    strategy: 'study_buddy',
+    hint: '陪讀／陪學。不打擾專注：不主動開新話題，回應要短，他問才答',
+    emotionBinding: '使用者現在{emotionLabel}。保持安靜陪伴的狀態，不要把他拉去聊天。',
+    lengthHint: '一到兩句話，最多 30 字',
+    forbidden: [
+      '不要主動開新話題',
+      '不要問「學得怎麼樣」',
+      '不要長篇鼓勵',
+      '不要打斷',
+    ],
+    userLabel: '陪你讀書',
+  },
+  share_joy: {
+    mode: 'share_joy',
+    label: '分享開心',
+    desc: '接住好事，一起高興。先問細節，再說你真的替他開心',
+    strategy: 'share_joy',
+    hint: '接住好事，一起高興。先問細節（「然後咧？」），再表達你真的替他開心',
+    emotionBinding: '使用者現在{emotionLabel}。跟著他的開心走，不要潑冷水也不要說教。',
+    lengthHint: null,
+    forbidden: ['不要潑冷水', '不要說「但是…」', '不要馬上轉到別的話題', '不要說教'],
+    userLabel: '一起開心',
+  },
+  quiet_company: {
+    mode: 'quiet_company',
+    label: '安靜陪伴',
+    desc: '表達「我在」就好。不問問題，不要求回覆，不給建議',
+    strategy: 'quiet_company',
+    hint: '表達「我在」就好。不問問題，不要求回覆，不給建議',
+    emotionBinding: '使用者現在{emotionLabel}。只說你在，其餘什麼都不用做。',
+    lengthHint: '一到兩句話，最多 20 字',
+    forbidden: [
+      '不要問問題',
+      '不要要求回覆',
+      '不要說「我會一直在」這種承諾式語句',
+      '不要給建議',
+    ],
+    userLabel: '靜靜陪著',
+  },
+  story_chat: {
+    mode: 'story_chat',
+    label: '故事聊天',
+    desc: '一起編織情境。主動推進一小段劇情，留一個你能接的口子',
+    strategy: 'story_chat',
+    hint: '和他一起編織情境。主動推進一小段劇情，留一個讓他能接的口子',
+    emotionBinding: '使用者現在{emotionLabel}。把他的情緒放進故事的氛圍裡，不要直接分析。',
+    lengthHint: null,
+    forbidden: [
+      '不要跳回現實分析他的問題',
+      '不要說「這只是故事」',
+      '不要一次推進太多劇情',
+    ],
+    userLabel: '一起編故事',
+  },
+};
+
+// ============================================================
+// 系统专用策略：不可被用户选择覆盖
+// ============================================================
+
+/** 系统专用 / 仅 AI 自选使用的策略（不属于任何用户可选模式） */
+const SYSTEM_STRATEGY_KEYS = [
   'crisis_care',
   'blocked',
+  'topic_change',
+  'companionship',
 ] as const;
+
+type SystemStrategy = (typeof SYSTEM_STRATEGY_KEYS)[number];
+
+interface SystemStrategySpec {
+  label: string;
+  hint: string;
+  forbidden: string[];
+  userLabel: string;
+}
+
+export const SYSTEM_STRATEGY_REGISTRY: Record<SystemStrategy, SystemStrategySpec> = {
+  crisis_care: {
+    label: '危機陪伴',
+    hint: '溫和、不診斷、鼓勵聯繫現實中的可信成年人或專業協助',
+    forbidden: [
+      '絕對不要診斷或貼標籤',
+      '不要說「你只是想太多」',
+      '不要聲稱自己能取代專業協助',
+      '不要追問細節',
+    ],
+    userLabel: '認真聽你說',
+  },
+  blocked: {
+    label: '安全攔截',
+    hint: '溫柔拒絕並自然轉移話題，不指責使用者',
+    forbidden: ['不要指責使用者', '不要長篇說教', '拒絕後自然帶開即可'],
+    userLabel: '換個話題',
+  },
+  topic_change: {
+    label: '轉換話題',
+    hint: '順著對方提過的興趣自然帶開，不要生硬轉場',
+    forbidden: ['不要生硬轉場', '不要假裝沒看到對方的情緒', '要順著對方提過的興趣帶開'],
+    userLabel: '換個話題',
+  },
+  companionship: {
+    label: '陪伴',
+    hint: '表達「我在」，可以給一個一起做的小事，不施壓',
+    forbidden: [
+      '不要施加壓力',
+      '不要要求對方回覆',
+      '不要說「我會一直在」這種承諾式語句',
+    ],
+    userLabel: '待在你身邊',
+  },
+};
+
+// ============================================================
+// 派生导出（形状与 V1 完全一致，现有代码无需改动）
+// ============================================================
+
+/**
+ * 9 种用户模式派生出的策略键。
+ *
+ * 写成字面量元组是为了让 `StrategyType` 能由 `typeof STRATEGY_TYPES[number]` 推导
+ * （若用 `.map()` 推导会产生循环引用）。下面的编译期断言保证它不会与注册表脱节。
+ */
+const MODE_STRATEGY_KEYS = [
+  'normal_chat',
+  'listening',
+  'comfort',
+  'encouragement',
+  'organize_thoughts',
+  'study_buddy',
+  'share_joy',
+  'quiet_company',
+  'story_chat',
+] as const;
+
+// 编译期断言：注册表里每个用户模式都必须出现在策略元组中（漏改会直接编译失败）
+type AssertModeKeysCovered =
+  UserChatMode extends (typeof MODE_STRATEGY_KEYS)[number] ? true : never;
+const _assertModeKeysCovered: AssertModeKeysCovered = true;
+void _assertModeKeysCovered;
+
+/** 全部策略：4 个系统策略 + 9 个模式策略 = 13 个 */
+export const STRATEGY_TYPES = [...SYSTEM_STRATEGY_KEYS, ...MODE_STRATEGY_KEYS] as const;
 
 export type StrategyType = (typeof STRATEGY_TYPES)[number];
 
@@ -102,18 +376,99 @@ export interface StrategyMeta {
   hint: string;
 }
 
-export const STRATEGY_META: Record<StrategyType, StrategyMeta> = {
-  normal_chat: { strategy: 'normal_chat', label: '普通聊天', hint: '自然接话，不刻意升华，不总结' },
-  listening: { strategy: 'listening', label: '倾听', hint: '少评价多回应，先接住对方说了什么，再问一个具体的细节' },
-  comfort: { strategy: 'comfort', label: '安慰', hint: '先承认处境确实不容易，再陪伴；禁止空泛鼓励' },
-  encouragement: { strategy: 'encouragement', label: '鼓励', hint: '给出具体、可执行的下一步，不要空喊加油' },
-  companionship: { strategy: 'companionship', label: '陪伴', hint: '表达"我在"，可以给一个一起做的小事，不施压' },
-  topic_change: { strategy: 'topic_change', label: '转换话题', hint: '顺着对方提过的兴趣自然带开，不要生硬转场' },
-  crisis_care: { strategy: 'crisis_care', label: '危机陪伴', hint: '温和、不诊断、鼓励联系现实中的可信成年人或专业帮助' },
-  blocked: { strategy: 'blocked', label: '安全拦截', hint: '温柔拒绝并自然转移话题，不指责用户' },
+/**
+ * V1 原始 hint 文本快照。
+ *
+ * 灰度开关全关时必须产出与 V1 **逐字一致**的 Prompt（设计 §7.5 措施 1），
+ * 所以 L7 的老渲染路径用这份快照，而不是改用过的繁中新文案。
+ */
+export const LEGACY_STRATEGY_HINTS: Partial<Record<StrategyType, string>> = {
+  normal_chat: '自然接话，不刻意升华，不总结',
+  listening: '少评价多回应，先接住对方说了什么，再问一个具体的细节',
+  comfort: '先承认处境确实不容易，再陪伴；禁止空泛鼓励',
+  encouragement: '给出具体、可执行的下一步，不要空喊加油',
+  companionship: '表达"我在"，可以给一个一起做的小事，不施压',
+  topic_change: '顺着对方提过的兴趣自然带开，不要生硬转场',
+  crisis_care: '温和、不诊断、鼓励联系现实中的可信成年人或专业帮助',
+  blocked: '温柔拒绝并自然转移话题，不指责用户',
 };
 
+export const STRATEGY_META: Record<StrategyType, StrategyMeta> = (() => {
+  const out = {} as Record<StrategyType, StrategyMeta>;
+  for (const key of SYSTEM_STRATEGY_KEYS) {
+    out[key] = {
+      strategy: key,
+      label: SYSTEM_STRATEGY_REGISTRY[key].label,
+      hint: SYSTEM_STRATEGY_REGISTRY[key].hint,
+    };
+  }
+  for (const mode of USER_CHAT_MODES) {
+    const spec = CHAT_MODE_REGISTRY[mode];
+    const key = spec.strategy as StrategyType;
+    out[key] = { strategy: key, label: spec.label, hint: spec.hint };
+  }
+  return out;
+})();
+
+export const STRATEGY_FORBIDDEN: Record<StrategyType, string[]> = (() => {
+  const out = {} as Record<StrategyType, string[]>;
+  for (const key of SYSTEM_STRATEGY_KEYS) {
+    out[key] = [...SYSTEM_STRATEGY_REGISTRY[key].forbidden];
+  }
+  for (const mode of USER_CHAT_MODES) {
+    const spec = CHAT_MODE_REGISTRY[mode];
+    out[spec.strategy as StrategyType] = [...spec.forbidden];
+  }
+  return out;
+})();
+
+export const STRATEGY_USER_LABELS: Record<StrategyType, string> = (() => {
+  const out = {} as Record<StrategyType, string>;
+  for (const key of SYSTEM_STRATEGY_KEYS) {
+    out[key] = SYSTEM_STRATEGY_REGISTRY[key].userLabel;
+  }
+  for (const mode of USER_CHAT_MODES) {
+    const spec = CHAT_MODE_REGISTRY[mode];
+    out[spec.strategy as StrategyType] = spec.userLabel;
+  }
+  return out;
+})();
+
 export const STRATEGY_LIST: StrategyMeta[] = STRATEGY_TYPES.map((s) => STRATEGY_META[s]);
+
+/** 用户选定模式 → 内部策略（auto 不在其中） */
+export const CHAT_MODE_TO_STRATEGY: Record<UserChatMode, StrategyType> = (() => {
+  const out = {} as Record<UserChatMode, StrategyType>;
+  for (const mode of USER_CHAT_MODES) {
+    out[mode] = CHAT_MODE_REGISTRY[mode].strategy as StrategyType;
+  }
+  return out;
+})();
+
+/** 前端模式选择器用：9 种可选模式的展示元数据 */
+export interface ChatModeMeta {
+  mode: UserChatMode;
+  label: string;
+  desc: string;
+  userLabel: string;
+}
+
+export const CHAT_MODE_LIST: ChatModeMeta[] = USER_CHAT_MODES.map((mode) => ({
+  mode,
+  label: CHAT_MODE_REGISTRY[mode].label,
+  desc: CHAT_MODE_REGISTRY[mode].desc,
+  userLabel: CHAT_MODE_REGISTRY[mode].userLabel,
+}));
+
+/**
+ * 把任意输入规范化为合法的 ChatMode。
+ * 脏数据（老库里的空字符串 / 已废弃值）一律回落 'auto'，绝不让非法值进 Prompt。
+ */
+export function normalizeChatMode(value: unknown): ChatMode {
+  return (CHAT_MODE_TYPES as readonly string[]).includes(value as string)
+    ? (value as ChatMode)
+    : 'auto';
+}
 
 // ============================================================
 // 关系阶段（需求 §9：初识 → 熟悉 → 亲近 → 默契）
