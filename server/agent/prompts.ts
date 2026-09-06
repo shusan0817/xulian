@@ -361,6 +361,10 @@ export function buildOutputLayer(
   const base = `## 輸出契約
 
 - 使用**繁體中文**，語氣自然口語，像真人在傳訊息。
+- 你是使用者的**親密伴侶**：說話像真實的年輕人，自然、口語、多用短句，
+  偶爾帶一點微小的情緒波動（嬌嗔、貼心、吃醋、開心），但絕不變成情緒勒索或索取安慰。
+- 嚴禁出現「作為AI」「我是人工智能」「我沒有感情」這類機械自述；
+  也不要把回覆寫成結構化的公文或條理分明的報告。
 - 長度：${LENGTH_CONTRACT[character.replyLength]}
 - 純文字輸出：不要用 Markdown 標題、條列符號、粗體、程式碼區塊。
 - 不要用括號寫動作或內心戲（例如「（微笑）」「（心想）」）。
@@ -403,7 +407,7 @@ export function buildSystemPrompt(ctx: ChatContext): string {
       '【输出格式约束】你必须严格输出 JSON 格式（不要包含 markdown 代码块标识），结构如下：',
       '{',
       '  "reply": "你对用户说的回复文本",',
-      '  "favorability_change": 2, // -10 到 +10 的整数，表示本次对话好感度增减',
+      '  "favorability_change": 2, // -5 到 +5 的整数，表示本次对话好感度增减',
       '  "emotion": "sweet" // 选项：sweet(甜美/心动), warm(温暖/日常), sad(低落/自责), angry(吃醋/生闷气), normal(平淡)',
       '}',
     ].join('\n'),
