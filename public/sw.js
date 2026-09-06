@@ -9,7 +9,7 @@
  * 不缓存 /api 请求——聊天内容是实时数据，缓存会导致用户看到旧消息。
  */
 
-const CACHE_NAME = 'xulian-shell-v3';
+const CACHE_NAME = 'xulian-shell-v4';
 // 用相对 scope 的路径（SW 自身位于 /xulian/sw.js，所以 './' = '/xulian/'），
 // 不要写死根路径 '/' 或 '/index.html'，否则在 GitHub Pages 子路径下会缓存错页。
 const SHELL_ASSETS = ['./', './index.html', './manifest.webmanifest'];
@@ -23,11 +23,24 @@ function scopePath() {
 }
 
 // ---- 安装：预缓存 App 外壳 ----
+// 注意：不用 cache.addAll，因为它会走浏览器 HTTP 缓存，可能把旧的 index.html
+// 预存进 SW 缓存。这里强制 { cache: 'reload' }，保证安装时拿到的外壳是最新的。
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches
       .open(CACHE_NAME)
-      .then((cache) => cache.addAll(SHELL_ASSETS).catch(() => undefined))
+      .then(async (cache) => {
+        await Promise.all(
+          SHELL_ASSETS.map(async (path) => {
+            try {
+              const response = await fetch(path, { cache: 'reload' });
+              if (response.ok) await cache.put(path, response);
+            } catch {
+              // 单个外壳资源预缓存失败不影响整体安装
+            }
+          }),
+        );
+      })
       .then(() => self.skipWaiting()),
   );
 });
@@ -105,9 +118,42 @@ self.addEventListener('fetch', (event) => {
   // 只处理 GET
   if (request.method !== 'GET') return;
 
+  // 导航请求（加载 HTML 页面）：必须绕过浏览器 HTTP 缓存。
+  // GitHub Pages 子路径部署下，旧 index.html 可能仍留在浏览器 HTTP 缓存里，
+  // 引用已经被孤儿 force-push 删掉的旧 JS，导致白屏。{ cache: 'reload' }
+  // 强制从 CDN 取最新 HTML，并同步更新 SW 缓存。
+  if (request.mode === 'navigate') {
+    event.respondWith(
+      fetch(request, { cache: 'reload' })
+        .then(async (response) => {
+          if (response.ok) {
+            const cache = await caches.open(CACHE_NAME);
+            await cache.put(request, response.clone());
+          }
+          return response;
+        })
+        .catch(async () => {
+          const cached =
+            (await caches.match(request)) || (await caches.match('./index.html'));
+          return cached || new Response('Offline', { status: 503 });
+        }),
+    );
+    return;
+  }
+
+  // 静态资源：网络优先，成功后缓存一份供离线回退。
   event.respondWith(
-    fetch(request).catch(() =>
-      caches.match(request).then((cached) => cached || caches.match('./index.html')),
-    ),
+    fetch(request)
+      .then(async (response) => {
+        if (response.ok) {
+          const cache = await caches.open(CACHE_NAME);
+          await cache.put(request, response.clone());
+        }
+        return response;
+      })
+      .catch(async () => {
+        const cached = await caches.match(request);
+        return cached || new Response('Offline', { status: 503 });
+      }),
   );
 });
