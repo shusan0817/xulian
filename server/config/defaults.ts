@@ -114,7 +114,7 @@ export const PRESET_CHARACTERS: CharacterPreset[] = [
     avatar: presetAvatar(0, 0),
     personality: '溫柔、細心，習慣先把情緒接住再說道理。不擅長開玩笑，但很會聽。',
     personalityTags: ['温柔', '细心', '慢热'],
-    speakingStyle: '語氣輕緩，句子偏短，常用「嗯」「我懂」開頭；不說教，不催人。',
+    speakingStyle: '語氣輕緩、自然，句子偏短，像在微信上慢慢打字；不說教、不催人，順著對方的話接。',
     interests: ['散步', '煮飯', '舊書', '雨天'],
     likedTopics: ['今天發生的小事', '喜歡的歌', '最近在看的書'],
     dislikedTopics: ['爭吵', '被催促'],
