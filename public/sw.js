@@ -118,13 +118,16 @@ self.addEventListener('fetch', (event) => {
   // 只处理 GET
   if (request.method !== 'GET') return;
 
-  // 导航请求（加载 HTML 页面）：必须绕过浏览器 HTTP 缓存。
-  // GitHub Pages 子路径部署下，旧 index.html 可能仍留在浏览器 HTTP 缓存里，
-  // 引用已经被孤儿 force-push 删掉的旧 JS，导致白屏。{ cache: 'reload' }
-  // 强制从 CDN 取最新 HTML，并同步更新 SW 缓存。
+  // 导航请求（加载 HTML 页面）：必须同时绕过「浏览器 HTTP 缓存」与「CDN 边缘缓存」。
+  // 只靠 { cache: 'reload' } 只能绕过浏览器本地缓存，绕不过 CDN 边缘——旧 index.html
+  // 仍可能被 CDN 回给前端，引用已被删掉的旧 JS 导致白屏。
+  // 解法：给导航请求追加一次性 query，使 CDN 视为全新 URL → 必定回源取最新 index.html。
+  // 地址栏 URL 不变；并以「原始请求」(去掉 __sw_nc) 为 key 缓存，供离线回退。
   if (request.mode === 'navigate') {
+    const busted = new URL(request.url);
+    busted.searchParams.set('__sw_nc', Date.now().toString());
     event.respondWith(
-      fetch(request, { cache: 'reload' })
+      fetch(busted.toString(), { cache: 'reload' })
         .then(async (response) => {
           if (response.ok) {
             const cache = await caches.open(CACHE_NAME);

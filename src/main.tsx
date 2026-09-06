@@ -45,3 +45,10 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) {
     });
   });
 }
+
+// 启动成功标志：供 index.html 自愈引导判断（5 秒未启动则硬刷新拉最新版）。
+// 成功启动后清掉重试计数，保证下次真遇到旧缓存仍拥有完整 3 次重试额度。
+try {
+  (window as unknown as { __XULIAN_BOOTED__?: boolean }).__XULIAN_BOOTED__ = true;
+  sessionStorage.removeItem('xulian_reload');
+} catch (e) {}

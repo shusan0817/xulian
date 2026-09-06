@@ -38,12 +38,28 @@ jobs:
       - name: SPA fallback (deep links return index.html)
         run: cp dist/index.html dist/404.html
 
-      - name: Deploy to gh-pages branch
+      - name: Deploy to gh-pages branch (保留旧 assets，避免旧 index.html 引用已删 JS 导致白屏)
         run: |
-          cd dist
-          git init
-          git add -A
+          set -e
+          REPO="https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/shusan0817/xulian.git"
+          rm -rf _ghpages
+          # 克隆已有 gh-pages（保留历史资源）；分支不存在则全新初始化
+          if git clone --depth=1 --branch gh-pages "$REPO" _ghpages 2>/dev/null; then
+            echo "已克隆现有 gh-pages"
+          else
+            echo "gh-pages 不存在，初始化全新分支"
+            mkdir _ghpages && cd _ghpages && git init -q && git checkout -q -b gh-pages && git remote add origin "$REPO" && cd ..
+          fi
+          # 用新构建覆盖：新增 index.html / 404.html / 新 assets/*.js，但「不删除」旧 assets/*.js，
+          # 这样任意被 CDN 边缘缓存的旧 index.html 引用的旧 JS 都仍存在 → 永不 404 白屏。
+          cp -r dist/. _ghpages/
+          cd _ghpages
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git commit -m "deploy: ${{ github.sha }}"
-          git push --force "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/shusan0817/xulian.git" HEAD:gh-pages
+          git add -A
+          if git diff --cached --quiet; then
+            echo "没有需要部署的变更"
+          else
+            git commit -m "deploy: ${{ github.sha }}"
+            git push "$REPO" HEAD:gh-pages
+          fi
