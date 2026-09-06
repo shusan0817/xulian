@@ -247,12 +247,24 @@ async function request<T>(options: RequestOptions): Promise<T> {
     try {
       payload = JSON.parse(text) as unknown;
     } catch {
-      // 非 JSON 响应（例如 Vite 的 HTML 404 页）→ 明确报出来，别让前端静默失败
-      const parseErr = new ApiError('E_INTERNAL', '伺服器回傳了非預期內容', response.status, true, {
-        preview: text.slice(0, 120),
-      });
-      if (!silent) toast.error(parseErr.message);
-      throw parseErr;
+      // 非 JSON 响应：绝大多数是「后端冷启动 / Render 免费版」回的 HTML 错误页（503 / 服务不可用 /
+      // Application is starting），不是真的"非预期内容"。给友好提示并标记可重试，
+      // 别让用户看到一串看不懂的文案。
+      const looksLikeHtml =
+        /^\s*</.test(text) ||
+        /<html|<!doctype/i.test(text) ||
+        /service\s*unavailable|503|application (is )?starting|upstream|bad gateway/i.test(text);
+      const apiErr = new ApiError(
+        looksLikeHtml ? 'E_BACKEND_UNAVAILABLE' : 'E_INTERNAL',
+        looksLikeHtml
+          ? '后端暂时无法响应，可能正在冷启动唤醒中，请稍后重试'
+          : '伺服器回傳了非預期內容',
+        response.status,
+        true,
+        { preview: text.slice(0, 120) },
+      );
+      if (!silent) toast.error(apiErr.message);
+      throw apiErr;
     }
   }
 

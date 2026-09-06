@@ -44,15 +44,25 @@ async function responseToApiError(response: Response): Promise<ApiError> {
   try {
     const text = await response.text();
     if (text) {
-      const payload = JSON.parse(text) as unknown;
-      const errorObj =
-        payload && typeof payload === 'object' && 'error' in payload
-          ? (payload as { error?: Record<string, unknown> }).error
-          : undefined;
-      if (errorObj && typeof errorObj === 'object') {
-        if (typeof errorObj['code'] === 'string') code = errorObj['code'] as string;
-        if (typeof errorObj['message'] === 'string') message = errorObj['message'] as string;
-        details = errorObj['details'];
+      // 冷启动 / Render 免费版回的 HTML 错误页（503 / 服务不可用）→ 友好提示，别让用户看到"伺服器回應 503"
+      const looksLikeHtml =
+        /^\s*</.test(text) ||
+        /<html|<!doctype/i.test(text) ||
+        /service\s*unavailable|503|application (is )?starting|upstream|bad gateway/i.test(text);
+      if (looksLikeHtml) {
+        code = 'E_BACKEND_UNAVAILABLE';
+        message = '后端暂时无法响应，可能正在冷启动唤醒中，请稍后重试';
+      } else {
+        const payload = JSON.parse(text) as unknown;
+        const errorObj =
+          payload && typeof payload === 'object' && 'error' in payload
+            ? (payload as { error?: Record<string, unknown> }).error
+            : undefined;
+        if (errorObj && typeof errorObj === 'object') {
+          if (typeof errorObj['code'] === 'string') code = errorObj['code'] as string;
+          if (typeof errorObj['message'] === 'string') message = errorObj['message'] as string;
+          details = errorObj['details'];
+        }
       }
     }
   } catch {
