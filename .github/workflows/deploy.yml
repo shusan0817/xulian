@@ -1,0 +1,49 @@
+name: Deploy 需恋 frontend to GitHub Pages
+
+# 推送到 main 即自动构建前端并部署到 gh-pages 分支（本仓库 Pages 来源 = 分支 gh-pages）。
+# 这是「唯一」的部署来源：日常不要再手动 force-push gh-pages，避免双写竞态导致 404。
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+permissions:
+  contents: write # 推送 gh-pages 分支需要写权限
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        # 不再注入 VITE_API_BASE_URL Secret：src/config/api.ts 已默认指向 Render 后端
+        # （https://xulian.onrender.com），本地/CI 构建结果一致、确定，避免 Secret 失配导致 API 失效。
+        run: npx vite build
+
+      - name: SPA fallback (deep links return index.html)
+        run: cp dist/index.html dist/404.html
+
+      - name: Deploy to gh-pages branch
+        run: |
+          cd dist
+          git init
+          git add -A
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git commit -m "deploy: ${{ github.sha }}"
+          git push --force "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/shusan0817/xulian.git" HEAD:gh-pages
