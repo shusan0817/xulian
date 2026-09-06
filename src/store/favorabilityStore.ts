@@ -61,16 +61,14 @@ export function applyAiReply(raw: string): string {
     const data = JSON.parse(clean) as AiReplyShape;
     if (data && typeof data.reply === 'string') {
       display = data.reply;
-      const delta = Number(data.favorability_change);
+      const rawDelta = Number(data.favorability_change);
+      // 硬性钳制在 [-5, 5]：与系统提示词声明的范围一致，防止模型偶发极端值
+      const delta = Number.isFinite(rawDelta) ? clamp(rawDelta, -5, 5) : 0;
       const emo =
         typeof data.emotion === 'string' && (VALID_EMOTIONS as string[]).includes(data.emotion)
           ? (data.emotion as AtmosphereEmotion)
           : null;
-      const nextFav = clamp(
-        Math.round(state.favorability + (Number.isFinite(delta) ? delta : 0)),
-        0,
-        100,
-      );
+      const nextFav = clamp(Math.round(state.favorability + delta), 0, 100);
       const nextAtm = emo ?? state.atmosphere;
       const changed = nextFav !== state.favorability || nextAtm !== state.atmosphere;
       state = {
