@@ -150,6 +150,11 @@ export interface AICharacter {
   sliderListening?: number;
   /** 使用者自訂描述（"你希望 TA 是什麼樣的"） */
   customDescription?: string;
+  /**
+   * V2：聊天模式（设计 §4）。'auto' = 交给 AI 自选，其余 9 种由用户主动选择。
+   * null / undefined 等价于 'auto'（迁移前的老库没有这一列）。
+   */
+  chatMode?: ChatMode | null;
   isDefault: boolean;
   createdAt: string;
   updatedAt: string;
