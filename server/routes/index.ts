@@ -14,6 +14,8 @@ import { chatRoutes } from './chatRoutes.js';
 import { memoryRoutes } from './memoryRoutes.js';
 import { proactiveRoutes } from './proactiveRoutes.js';
 import { pushRoutes } from './pushRoutes.js';
+import { feedbackRoutes } from './feedbackRoutes.js';
+import { safetyRoutes } from './safetyRoutes.js';
 
 export const apiRoutes = Router();
 
@@ -40,5 +42,11 @@ apiRoutes.use('/proactive', proactiveRoutes);
 
 // ---- 推送与在线状态 ----
 apiRoutes.use('/push', pushRoutes);
+
+// ---- 反馈与举报（V2-14）----
+apiRoutes.use('/feedback', feedbackRoutes);
+
+// ---- 安全策略与未成年保护（V2-13）----
+apiRoutes.use('/safety', safetyRoutes);
 
 export { metaRoutes };
