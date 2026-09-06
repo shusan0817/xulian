@@ -129,7 +129,9 @@ export function usePush(): UsePushResult {
       }
 
       // 3. 注册 Service Worker 并订阅
-      const registration = await navigator.serviceWorker.register('/sw.js');
+      const registration = await navigator.serviceWorker.register(
+        import.meta.env.BASE_URL + 'sw.js',
+      );
       await navigator.serviceWorker.ready;
 
       const existing = await registration.pushManager.getSubscription();

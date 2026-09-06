@@ -9,8 +9,18 @@
  * 不缓存 /api 请求——聊天内容是实时数据，缓存会导致用户看到旧消息。
  */
 
-const CACHE_NAME = 'xulian-shell-v1';
-const SHELL_ASSETS = ['/', '/index.html', '/manifest.webmanifest'];
+const CACHE_NAME = 'xulian-shell-v2';
+// 用相对 scope 的路径（SW 自身位于 /xulian/sw.js，所以 './' = '/xulian/'），
+// 不要写死根路径 '/' 或 '/index.html'，否则在 GitHub Pages 子路径下会缓存错页。
+const SHELL_ASSETS = ['./', './index.html', './manifest.webmanifest'];
+
+function scopePath() {
+  try {
+    return new URL(self.registration.scope).pathname.replace(/\/$/, '');
+  } catch {
+    return '/xulian';
+  }
+}
 
 // ---- 安装：预缓存 App 外壳 ----
 self.addEventListener('install', (event) => {
@@ -62,7 +72,10 @@ self.addEventListener('push', (event) => {
 // ---- 点击通知：带到对应页面 ----
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const targetUrl = (event.notification.data && event.notification.data.url) || '/';
+  const raw = (event.notification.data && event.notification.data.url) || '/';
+  const targetUrl = raw.startsWith('http')
+    ? raw
+    : scopePath() + (raw.startsWith('/') ? raw : '/' + raw);
 
   event.waitUntil(
     self.clients
@@ -94,7 +107,7 @@ self.addEventListener('fetch', (event) => {
 
   event.respondWith(
     fetch(request).catch(() =>
-      caches.match(request).then((cached) => cached || caches.match('/index.html')),
+      caches.match(request).then((cached) => cached || caches.match('./index.html')),
     ),
   );
 });
