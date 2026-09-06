@@ -139,6 +139,36 @@ export function adminCountRecentNegative(userId: string, sinceIso: string): numb
   return row?.n ?? 0;
 }
 
+/**
+ * 最近 N 条主动消息里，有多少条被用户给了负反馈（T05 的 V13 反馈疲劳否决要读它）。
+ *
+ * 与「按时间窗口计数」的区别：V13 的口径是「最近 3 条主动消息里有 2 条被嫌弃」，
+ * 而不是「最近 72 小时有多少条负反馈」——前者才对应用户真实的疲劳感受。
+ * 所以这里先取最近 N 条主动消息，再数其中被负反馈的条数。
+ */
+export function adminCountNegativeOnProactive(userId: string, characterId: string, lastN = 3): number {
+  const row = db
+    .prepare(
+      `SELECT COUNT(DISTINCT f.message_id) AS n
+         FROM message_feedback f
+         JOIN messages m ON m.id = f.message_id
+        WHERE f.user_id = ?
+          AND m.is_proactive = 1
+          AND f.kind IN ('not_interesting','inappropriate','unsafe','report')
+          AND m.id IN (
+            SELECT id FROM messages
+             WHERE user_id = ? AND is_proactive = 1
+               AND (? = '' OR character_id = ?)
+             ORDER BY created_at DESC
+             LIMIT ?
+          )`,
+    )
+    .get(userId, userId, characterId ?? '', characterId ?? '', Math.min(Math.max(lastN, 1), 20)) as
+    | { n: number }
+    | undefined;
+  return row?.n ?? 0;
+}
+
 // ============================================================
 // 写入
 // ============================================================
