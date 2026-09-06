@@ -13,6 +13,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { apiDelete, apiGet, humanizeError } from '@/api/client';
 import { postSse } from '@/api/sse';
+import { applyAiReply, extractReply } from '@/store/favorabilityStore';
 import type { ChatSseEvent, SseStage } from '@shared/sse';
 import type { EmotionType, MemoryCategory, RelationshipStage, StrategyType } from '@shared/constants';
 import type { MessageRecord } from '@shared/types';
@@ -82,6 +83,7 @@ export function useChat(options: UseChatOptions): UseChatResult {
   const controllerRef = useRef<AbortController | null>(null);
   const lastUserText = useRef<string>('');
   const streamingIdRef = useRef<string | null>(null);
+  const rawReplyRef = useRef<string>('');
 
   // 切换角色时清空会话
   useEffect(() => {
@@ -107,7 +109,10 @@ export function useChat(options: UseChatOptions): UseChatResult {
           { limit: 30 },
           { silent: true },
         );
-        setMessages(page.messages as ChatMessage[]);
+        const cleaned = (page.messages as ChatMessage[]).map((m) =>
+          m.role === 'assistant' ? { ...m, content: extractReply(m.content) } : m,
+        );
+        setMessages(cleaned);
         setHasMore(page.hasMore);
       } catch (err) {
         setError(humanizeError(err));
@@ -174,6 +179,7 @@ export function useChat(options: UseChatOptions): UseChatResult {
             m.id === streamingIdRef.current ? { ...m, content: m.content + event.content } : m,
           ),
         );
+        rawReplyRef.current += event.content;
         break;
 
       case 'replace':
@@ -181,6 +187,7 @@ export function useChat(options: UseChatOptions): UseChatResult {
         setMessages((prev) =>
           prev.map((m) => (m.id === streamingIdRef.current ? { ...m, content: event.content } : m)),
         );
+        rawReplyRef.current = event.content;
         break;
 
       case 'strategy':
@@ -210,13 +217,18 @@ export function useChat(options: UseChatOptions): UseChatResult {
         }));
         break;
 
-      case 'done':
+      case 'done': {
+        const id = streamingIdRef.current;
+        const raw = rawReplyRef.current;
+        rawReplyRef.current = '';
+        const display = applyAiReply(raw); // 在 updater 外调用，避免 StrictMode 双调用导致好感度翻倍
         setMessages((prev) =>
-          prev.map((m) => (m.id === streamingIdRef.current ? { ...m, streaming: false } : m)),
+          prev.map((m) => (m.id === id ? { ...m, content: display, streaming: false } : m)),
         );
         streamingIdRef.current = null;
         setStage(null);
         break;
+      }
 
       case 'error':
         setMessages((prev) =>
@@ -227,6 +239,7 @@ export function useChat(options: UseChatOptions): UseChatResult {
           ),
         );
         streamingIdRef.current = null;
+        rawReplyRef.current = '';
         setError(event.message);
         setCanRetry(event.retryable);
         setStage(null);

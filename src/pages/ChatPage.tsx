@@ -21,6 +21,7 @@ import { Avatar } from '@/components/common/Avatar';
 import { EmptyState } from '@/components/common/EmptyState';
 import { MessageBubble } from '@/components/chat/MessageBubble';
 import { ChatComposer } from '@/components/chat/ChatComposer';
+import { FavorabilityCard } from '@/components/chat/FavorabilityCard';
 import { STAGE_LABELS } from '@/components/chat/strategyLabels';
 
 import { useChat } from '@/hooks/useChat';
@@ -28,11 +29,31 @@ import { useAppState } from '@/hooks/useAppState';
 import { apiGet, apiPost } from '@/api/client';
 import { EMOTION_ANCHORS, STAGE_META } from '@shared/constants';
 import type { EmotionType, RelationshipStage } from '@shared/constants';
+import { useFavorability } from '@/store/favorabilityStore';
+import type { AtmosphereEmotion } from '@/store/favorabilityStore';
 
 interface CharacterState {
   emotion: { currentEmotion: EmotionType; intensity: number };
   relationship: { stage: RelationshipStage; interactionLevel: number };
 }
+
+/** 氛围 → 聊天背景渐变 */
+const ATMOSPHERE_BG: Record<AtmosphereEmotion, string> = {
+  sweet: 'bg-gradient-to-b from-pink-500/10 to-rose-500/10',
+  warm: 'bg-gradient-to-b from-amber-500/10 to-orange-500/10',
+  sad: 'bg-gradient-to-b from-slate-700/20 to-indigo-950/20',
+  angry: 'bg-gradient-to-b from-red-600/15 to-rose-950/15',
+  normal: '',
+};
+
+/** 氛围 → 聊天容器边框 */
+const ATMOSPHERE_RING: Record<AtmosphereEmotion, string> = {
+  sweet: 'ring-1 ring-pink-400/30',
+  warm: 'ring-1 ring-amber-400/40',
+  sad: 'ring-1 ring-indigo-500/20',
+  angry: 'ring-1 ring-red-500/30 animate-pulse',
+  normal: '',
+};
 
 export function ChatPage(): React.ReactElement {
   const navigate = useNavigate();
@@ -53,6 +74,7 @@ export function ChatPage(): React.ReactElement {
   );
 
   const chat = useChat({ characterId });
+  const { atmosphere } = useFavorability();
   const [state, setState] = useState<CharacterState | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -115,6 +137,9 @@ export function ChatPage(): React.ReactElement {
         }
       />
 
+      {/* 心动值卡片 */}
+      <FavorabilityCard />
+
       {/* 错误提示条 */}
       {chat.error ? (
         <div className="flex-none border-b border-[var(--xl-blush)]/30 bg-[var(--xl-blush)]/10 px-4 py-2">
@@ -137,7 +162,7 @@ export function ChatPage(): React.ReactElement {
       {/* 消息列表 */}
       <div
         ref={scrollRef}
-        className="min-h-0 flex-1 overflow-y-auto px-3 py-3 xl-no-scrollbar"
+        className={`min-h-0 flex-1 overflow-y-auto px-3 py-3 xl-no-scrollbar transition-colors duration-500 ${ATMOSPHERE_BG[atmosphere]} ${ATMOSPHERE_RING[atmosphere]}`}
       >
         {!characterId || appLoading ? (
           <div className="flex h-full items-center justify-center text-[13px] text-[var(--xl-sub)]">

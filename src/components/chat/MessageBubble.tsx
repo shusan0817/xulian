@@ -109,19 +109,14 @@ export function MessageBubble({
         >
           {failed ? (
             <span className="text-[var(--xl-blush-deep)]">這則回應沒有送出成功</span>
-          ) : message.content ? (
-            <>
-              {message.content}
-              {message.streaming ? (
-                <span className="ml-0.5 inline-block h-4 w-[2px] animate-pulse bg-[var(--xl-sub)] align-middle" />
-              ) : null}
-            </>
           ) : message.streaming ? (
             <span className="flex items-center gap-1 py-0.5">
               <Dot delay={0} />
               <Dot delay={150} />
               <Dot delay={300} />
             </span>
+          ) : message.content ? (
+            message.content
           ) : (
             <span className="text-[var(--xl-sub)]">（空白訊息）</span>
           )}

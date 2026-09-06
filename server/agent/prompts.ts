@@ -397,6 +397,18 @@ export function buildSystemPrompt(ctx: ChatContext): string {
     buildOutputLayer(ctx.character, modeLengthOverride(ctx)),
   );
 
+  parts.push(
+    '',
+    [
+      '【输出格式约束】你必须严格输出 JSON 格式（不要包含 markdown 代码块标识），结构如下：',
+      '{',
+      '  "reply": "你对用户说的回复文本",',
+      '  "favorability_change": 2, // -10 到 +10 的整数，表示本次对话好感度增减',
+      '  "emotion": "sweet" // 选项：sweet(甜美/心动), warm(温暖/日常), sad(低落/自责), angry(吃醋/生闷气), normal(平淡)',
+      '}',
+    ].join('\n'),
+  );
+
   return parts.join('\n');
 }
 
