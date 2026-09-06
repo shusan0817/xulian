@@ -14,6 +14,8 @@
     <title>需恋</title>
 
     <!-- PWA -->
+    <!-- 注意：路径需与 vite.config.ts 的 base('/xulian/') 保持一致；
+         此处不用 %BASE%（本 Vite 版本在 link href 中解析会触发 URI malformed）。 -->
     <link rel="manifest" href="/xulian/manifest.webmanifest" />
     <link rel="icon" type="image/svg+xml" href="/xulian/logo.svg" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -21,7 +23,37 @@
     <meta name="apple-mobile-web-app-title" content="需恋" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="format-detection" content="telephone=no" />
-    <script type="module" crossorigin src="/xulian/assets/index-CL-qmwC5.js"></script>
+
+    <!-- 自愈引导：主包加载失败或长时间未启动，自动硬刷新拉取最新 index.html，
+         避免 GitHub Pages CDN 边缘缓存旧 index.html 引用已删 JS 导致白屏。 -->
+    <script>
+      (function () {
+        window.__XULIAN_BOOTED__ = false;
+        try {
+          if (parseInt(sessionStorage.getItem('xulian_reload') || '0', 10) > 3) return;
+        } catch (e) {}
+        function hardReload() {
+          try {
+            var c = parseInt(sessionStorage.getItem('xulian_reload') || '0', 10) + 1;
+            sessionStorage.setItem('xulian_reload', String(c));
+          } catch (e) {}
+          var url = location.href.split('#')[0].split('?')[0];
+          location.replace(url + (url.indexOf('?') >= 0 ? '&' : '?') + '__xr=' + Date.now());
+        }
+        window.addEventListener(
+          'error',
+          function (e) {
+            var t = e && e.target;
+            if (t && t.tagName === 'SCRIPT' && t.src && /\/assets\//.test(t.src)) hardReload();
+          },
+          true
+        );
+        setTimeout(function () {
+          if (!window.__XULIAN_BOOTED__) hardReload();
+        }, 5000);
+      })();
+    </script>
+    <script type="module" crossorigin src="/xulian/assets/index-S3C6dFvk.js"></script>
     <link rel="stylesheet" crossorigin href="/xulian/assets/index-CqyYTD3R.css">
   </head>
   <body>
