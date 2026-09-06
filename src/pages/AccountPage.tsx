@@ -42,7 +42,7 @@ export function AccountPage(): React.ReactElement {
   const loadSessions = useCallback(async (): Promise<void> => {
     setSessionsLoading(true);
     try {
-      const res = await apiGet<SessionListResponse>('/api/auth/sessions');
+      const res = await apiGet<SessionListResponse>('/api/auth/sessions', undefined, { silent: true });
       setSessions(res.items ?? []);
     } catch (err) {
       toast.error(humanizeError(err));
@@ -95,7 +95,7 @@ export function AccountPage(): React.ReactElement {
     try {
       await apiPatch('/api/auth/birth-date', {
         birthDate: birthDate.trim() ? birthDate.trim() : null,
-      });
+      }, { silent: true });
       await refresh();
       toast.success('出生日期已更新');
     } catch (err) {
@@ -107,7 +107,7 @@ export function AccountPage(): React.ReactElement {
 
   const revokeSession = async (sessionId: string): Promise<void> => {
     try {
-      await apiDelete(`/api/auth/sessions/${sessionId}`);
+      await apiDelete(`/api/auth/sessions/${sessionId}`, undefined, { silent: true });
       toast.success('已登出該裝置');
       await loadSessions();
     } catch (err) {

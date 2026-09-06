@@ -72,6 +72,7 @@ export function SettingsPage(): React.ReactElement {
       const res = await apiPatch<{ character: AICharacter }>(
         `/api/characters/${characterId}`,
         patch,
+        { silent: true },
       );
       setUpdatedCharacter(res.character);
       await refreshProactive();
@@ -102,7 +103,7 @@ export function SettingsPage(): React.ReactElement {
     if (confirmDelete === 'none' || !user) return;
     setBusy(true);
     try {
-      await apiDelete(`/api/users/${user.id}/data?scope=${confirmDelete}`);
+      await apiDelete(`/api/users/${user.id}/data?scope=${confirmDelete}`, undefined, { silent: true });
       setConfirmDelete('none');
       await refresh();
       navigate('/');

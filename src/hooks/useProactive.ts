@@ -53,12 +53,12 @@ export function useProactive(characterId?: string | null): UseProactiveResult {
     try {
       setLoading(true);
       const [inboxRes, statusRes, schedRes, historyRes] = await Promise.all([
-        apiGet<{ messages: MessageRecord[] }>('/api/proactive/inbox', { limit: 20 }),
+        apiGet<{ messages: MessageRecord[] }>('/api/proactive/inbox', { limit: 20 }, { silent: true }),
         apiGet<ProactiveStatus>('/api/proactive/status', {
           characterId: characterId ?? undefined,
-        }),
-        apiGet<SchedulerStatus>('/api/proactive/scheduler'),
-        apiGet<{ tasks: ProactiveTask[] }>('/api/proactive/history', { limit: 10 }),
+        }, { silent: true }),
+        apiGet<SchedulerStatus>('/api/proactive/scheduler', undefined, { silent: true }),
+        apiGet<{ tasks: ProactiveTask[] }>('/api/proactive/history', { limit: 10 }, { silent: true }),
       ]);
       setInbox(inboxRes.messages ?? []);
       setStatus(statusRes);

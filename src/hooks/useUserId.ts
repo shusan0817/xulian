@@ -75,7 +75,7 @@ export function useUserId(): UseUserIdResult {
           clientUserId: account?.user.id ?? ensureLocalUserId(),
           timezone: localTimezone(),
           locale: localLocale(),
-        });
+        }, { silent: true });
         if (cancelled) return;
         if (data?.user?.id) {
           setUserId(data.user.id);

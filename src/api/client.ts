@@ -13,8 +13,16 @@ import { ERROR_MESSAGES, isRetryable, type ErrorCodeValue } from '@shared/errors
 import { STORAGE_KEYS } from '@/config';
 import { API_BASE } from '@/config/api';
 import { uuid } from '@/utils/id';
+import { toast } from '@/components/common/Toast';
 
-const DEFAULT_TIMEOUT_MS = 15_000;
+/** 后端无响应超过这个时间，提示“冷启动唤醒中”（Render 免费版会休眠，首个请求可能要等数十秒） */
+export const COLD_START_HINT_MS = 5_000;
+
+/**
+ * 硬超时上限。给足冷启动时间（免费版唤醒可能要 20~40s），避免一超时就把用户踢走；
+ * 5s 时先弹“后端正在冷启动唤醒中”的友好提示，让用户知道不是卡死了。
+ */
+const DEFAULT_TIMEOUT_MS = 30_000;
 
 let cachedUserId: string | null = null;
 
@@ -144,6 +152,8 @@ interface RequestOptions {
   auth?: boolean;
   timeoutMs?: number;
   signal?: AbortSignal;
+  /** 为 true 时不在全局弹错误 Toast（调用方自己处理错误展示） */
+  silent?: boolean;
 }
 
 function buildUrl(path: string, params?: RequestOptions['params']): string {
@@ -173,10 +183,17 @@ async function request<T>(options: RequestOptions): Promise<T> {
     auth = true,
     timeoutMs = DEFAULT_TIMEOUT_MS,
     signal: externalSignal,
+    silent = false,
   } = options;
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  // 冷启动提示：Render 免费版休眠后首请求可能要数十秒才响应，5s 内无响应先提示"唤醒中"
+  let coldStartId: string | null = null;
+  const coldStartTimer = setTimeout(() => {
+    coldStartId = toast.info('后端正在冷启动唤醒中，请稍候...', 0); // duration=0 → 常驻，手动消失
+  }, COLD_START_HINT_MS);
 
   // 外部 signal 也要能中断（聊天流式请求用）
   const onExternalAbort = (): void => controller.abort();
@@ -203,15 +220,19 @@ async function request<T>(options: RequestOptions): Promise<T> {
     });
   } catch (err) {
     const aborted = err instanceof DOMException && err.name === 'AbortError';
-    throw new ApiError(
+    const apiErr = new ApiError(
       aborted ? 'E_AI_TIMEOUT' : 'E_INTERNAL',
       aborted ? '請求逾時，請再試一次' : '連不上伺服器，請確認網路',
       0,
       true,
       { cause: err instanceof Error ? err.message : String(err) },
     );
+    if (!silent) toast.error(apiErr.message);
+    throw apiErr;
   } finally {
     clearTimeout(timer);
+    clearTimeout(coldStartTimer);
+    if (coldStartId) toast.dismiss(coldStartId);
     if (externalSignal) externalSignal.removeEventListener('abort', onExternalAbort);
   }
 
@@ -227,9 +248,11 @@ async function request<T>(options: RequestOptions): Promise<T> {
       payload = JSON.parse(text) as unknown;
     } catch {
       // 非 JSON 响应（例如 Vite 的 HTML 404 页）→ 明确报出来，别让前端静默失败
-      throw new ApiError('E_INTERNAL', '伺服器回傳了非預期內容', response.status, true, {
+      const parseErr = new ApiError('E_INTERNAL', '伺服器回傳了非預期內容', response.status, true, {
         preview: text.slice(0, 120),
       });
+      if (!silent) toast.error(parseErr.message);
+      throw parseErr;
     }
   }
 
@@ -249,6 +272,8 @@ async function request<T>(options: RequestOptions): Promise<T> {
       isRetryable(code),
       errorObj['details'],
     );
+
+    if (!silent) toast.error(error.message);
 
     // 登录态失效：立刻清 token 并跳登录页（登录/注册页本身不跳，避免死循环）。
     // E_INVALID_CREDENTIALS 不在这里处理——那是"刚才输入的密码不对"，
@@ -274,7 +299,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 export function apiGet<T>(
   path: string,
   params?: RequestOptions['params'],
-  init?: { timeoutMs?: number; signal?: AbortSignal; auth?: boolean },
+  init?: { timeoutMs?: number; signal?: AbortSignal; auth?: boolean; silent?: boolean },
 ): Promise<T> {
   return request<T>({ method: 'GET', path, params, ...init });
 }
@@ -282,7 +307,7 @@ export function apiGet<T>(
 export function apiPost<T>(
   path: string,
   body?: unknown,
-  init?: { timeoutMs?: number; signal?: AbortSignal; auth?: boolean },
+  init?: { timeoutMs?: number; signal?: AbortSignal; auth?: boolean; silent?: boolean },
 ): Promise<T> {
   return request<T>({ method: 'POST', path, body, ...init });
 }
@@ -290,7 +315,7 @@ export function apiPost<T>(
 export function apiPatch<T>(
   path: string,
   body?: unknown,
-  init?: { timeoutMs?: number; signal?: AbortSignal; auth?: boolean },
+  init?: { timeoutMs?: number; signal?: AbortSignal; auth?: boolean; silent?: boolean },
 ): Promise<T> {
   return request<T>({ method: 'PATCH', path, body, ...init });
 }
@@ -298,7 +323,7 @@ export function apiPatch<T>(
 export function apiDelete<T>(
   path: string,
   body?: unknown,
-  init?: { timeoutMs?: number; signal?: AbortSignal; auth?: boolean },
+  init?: { timeoutMs?: number; signal?: AbortSignal; auth?: boolean; silent?: boolean },
 ): Promise<T> {
   return request<T>({ method: 'DELETE', path, body, ...init });
 }

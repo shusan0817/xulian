@@ -74,11 +74,12 @@ function setSnapshot(patch: Partial<AuthSnapshot>): void {
 async function loadAuthState(): Promise<void> {
   const status = await apiGet<AuthStatusResponse>('/api/auth/status', undefined, {
     auth: false,
+    silent: true,
   });
   setSnapshot({ allowAnonymous: status.allowAnonymous });
 
   if (status.authenticated && getToken()) {
-    const me = await apiGet<AccountInfoResponse>('/api/auth/me');
+    const me = await apiGet<AccountInfoResponse>('/api/auth/me', undefined, { silent: true });
     // 让 X-User-Id 与登录态保持一致，避免两个身份各说各话
     setUserId(me.user.id);
     setSnapshot({ status: 'authenticated', account: me, error: null });
@@ -130,7 +131,7 @@ async function applyAuthResult(request: Promise<AuthTokenResponse>): Promise<voi
   setToken(result.token);
   setUserId(result.user.id);
   // 注册/登录响应里带的是精简 user，这里再取一次完整账号信息（含 session 详情）
-  const me = await apiGet<AccountInfoResponse>('/api/auth/me');
+  const me = await apiGet<AccountInfoResponse>('/api/auth/me', undefined, { silent: true });
   setSnapshot({ status: 'authenticated', account: me, error: null });
 }
 
@@ -163,7 +164,7 @@ export function useAuth(): UseAuthResult {
   const login = useCallback(async (email: string, password: string): Promise<void> => {
     try {
       await applyAuthResult(
-        apiPost<AuthTokenResponse>('/api/auth/login', { email, password }, { auth: false }),
+        apiPost<AuthTokenResponse>('/api/auth/login', { email, password }, { auth: false, silent: true }),
       );
     } catch (err) {
       setSnapshot({ error: humanizeError(err) });
@@ -186,7 +187,7 @@ export function useAuth(): UseAuthResult {
             birthDate: payload.birthDate ?? null,
             attachUserId,
           },
-          { auth: false },
+          { auth: false, silent: true },
         ),
       );
     } catch (err) {
@@ -210,10 +211,10 @@ export function useAuth(): UseAuthResult {
       const result = await apiPatch<{ ok: true; revokedSessions: number }>('/api/auth/password', {
         oldPassword,
         newPassword,
-      });
+      }, { silent: true });
       const revoked = result.revokedSessions;
       // 其它设备已被踢下线，本机会话仍在；刷新一次账号信息
-      const me = await apiGet<AccountInfoResponse>('/api/auth/me');
+      const me = await apiGet<AccountInfoResponse>('/api/auth/me', undefined, { silent: true });
       setSnapshot({ account: me });
       return revoked;
     },

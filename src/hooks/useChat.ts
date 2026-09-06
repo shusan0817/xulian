@@ -105,6 +105,7 @@ export function useChat(options: UseChatOptions): UseChatResult {
         const page = await apiGet<{ messages: MessageRecord[]; hasMore: boolean }>(
           `/api/chat/conversations/${convId}/messages`,
           { limit: 30 },
+          { silent: true },
         );
         setMessages(page.messages as ChatMessage[]);
         setHasMore(page.hasMore);

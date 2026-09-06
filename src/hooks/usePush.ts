@@ -112,6 +112,8 @@ export function usePush(): UsePushResult {
       // 1. 拿 VAPID 公钥
       const { publicKey, enabled } = await apiGet<{ publicKey: string; enabled: boolean }>(
         '/api/push/vapid-public-key',
+        undefined,
+        { silent: true },
       );
       if (!enabled || !publicKey) {
         setError('伺服器尚未設定 VAPID 金鑰，推播功能未啟用');
@@ -145,7 +147,7 @@ export function usePush(): UsePushResult {
         endpoint: subscription.endpoint,
         keys: json.keys,
         userAgent: navigator.userAgent,
-      });
+      }, { silent: true });
 
       setSubscribed(true);
       return true;
@@ -165,10 +167,12 @@ export function usePush(): UsePushResult {
       if (subscription) {
         await apiDelete(
           `/api/push/unsubscribe?endpoint=${encodeURIComponent(subscription.endpoint)}`,
+          undefined,
+          { silent: true },
         );
         await subscription.unsubscribe();
       } else {
-        await apiDelete('/api/push/unsubscribe');
+        await apiDelete('/api/push/unsubscribe', undefined, { silent: true });
       }
       setSubscribed(false);
     } catch (err) {
@@ -181,7 +185,7 @@ export function usePush(): UsePushResult {
   const sendTest = useCallback(async (): Promise<void> => {
     setBusy(true);
     try {
-      await apiPost('/api/push/test', {});
+      await apiPost('/api/push/test', {}, { silent: true });
     } catch (err) {
       setError(humanizeError(err));
     } finally {

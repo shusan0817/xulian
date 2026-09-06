@@ -165,11 +165,11 @@ export function CharacterEditPage(): React.ReactElement {
 
     try {
       if (isEdit && id) {
-        await apiPatch(`/api/characters/${id}`, payload);
+        await apiPatch(`/api/characters/${id}`, payload, { silent: true });
       } else if (pickedPreset) {
-        await apiPost('/api/characters', { presetKey: pickedPreset, ...payload });
+        await apiPost('/api/characters', { presetKey: pickedPreset, ...payload }, { silent: true });
       } else {
-        await apiPost('/api/characters', payload);
+        await apiPost('/api/characters', payload, { silent: true });
       }
       await refresh();
       navigate('/characters');

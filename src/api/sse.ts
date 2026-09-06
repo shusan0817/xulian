@@ -9,8 +9,9 @@
  */
 
 import type { ChatSseEvent } from '@shared/sse';
-import { ApiError, getToken, getUserId, redirectToLogin } from './client';
+import { ApiError, getToken, getUserId, redirectToLogin, COLD_START_HINT_MS } from './client';
 import { API_BASE } from '@/config/api';
+import { toast } from '@/components/common/Toast';
 
 export interface SseStreamHandlers {
   /** 每收到一条事件回调一次（text 事件是增量 delta，调用方负责拼接） */
@@ -80,6 +81,17 @@ export async function postSse(
   }
 
   const url = API_BASE ? `${API_BASE}${path}` : path;
+
+  // 冷启动提示（与 client.ts 一致）：后端休眠后首请求慢，5s 内无响应先提示"唤醒中"
+  let coldStartId: string | null = null;
+  const coldStartTimer = setTimeout(() => {
+    coldStartId = toast.info('后端正在冷启动唤醒中，请稍候...', 0);
+  }, COLD_START_HINT_MS);
+  const clearColdStart = (): void => {
+    clearTimeout(coldStartTimer);
+    if (coldStartId) toast.dismiss(coldStartId);
+  };
+
   let response: Response;
   try {
     response = await fetch(url, {
@@ -92,14 +104,19 @@ export async function postSse(
   } catch (err) {
     // 用户主动中断（点「停止」）不算错误，直接安静结束
     if (err instanceof DOMException && err.name === 'AbortError') {
+      clearColdStart();
       handlers.onClose?.();
       return;
     }
     const error = new Error('連不上伺服器，請確認網路');
+    clearColdStart();
     handlers.onError?.(error);
     handlers.onClose?.();
     throw error;
   }
+
+  // 一旦拿到任意响应（成功或失败）就撤掉冷启动提示
+  clearColdStart();
 
   if (!response.ok) {
     const apiError = await responseToApiError(response);
@@ -108,6 +125,7 @@ export async function postSse(
     if (apiError.code === 'E_AUTH_REQUIRED' || apiError.code === 'E_SESSION_EXPIRED') {
       redirectToLogin();
     }
+    clearColdStart();
     handlers.onError?.(apiError);
     handlers.onClose?.();
     throw apiError;

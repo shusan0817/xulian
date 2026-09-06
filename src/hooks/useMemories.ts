@@ -34,7 +34,7 @@ export function useMemories(characterId?: string | null): UseMemoriesResult {
       const result = await apiGet<{ items: MemoryItem[]; total: number }>('/api/memories', {
         characterId: characterId ?? undefined,
         limit: 200,
-      });
+      }, { silent: true });
       setMemories(result.items ?? []);
       setTotal(result.total ?? 0);
       setError(null);

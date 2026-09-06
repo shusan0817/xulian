@@ -47,6 +47,7 @@ export function useAppState(): AppState {
       setLoading(true);
       const data = await apiGet<BootstrapPayload>('/api/users/bootstrap', {
         auth: false,
+        silent: true,
       });
       setUser(data.user);
       setCharacters(data.characters ?? []);
