@@ -1,0 +1,20 @@
+name: Keep Render backend awake
+
+# Render 免费版在 15 分钟无活动后会休眠，下次请求要冷启动 20~40 秒，
+# 导致前端一直卡在「檢查登入狀態…」转圈。
+# 每 10 分钟 ping 一次健康端点（间隔 < 15 分钟），使服务保持唤醒，
+# 用户打开 App 时后端即时响应，不再有冷启动延迟。
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping backend health endpoint
+        run: |
+          curl -fsS -m 30 "https://xulian.onrender.com/api/health" \
+            && echo "backend awake" \
+            || echo "ping failed (backend may be waking or temporarily unreachable)"
