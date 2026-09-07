@@ -205,6 +205,10 @@ function buildRuntime(userId: string, characterId: string) {
     lastMessagePreview: last ? last.content.slice(0, 40) : '',
     lastMessageAt: last?.createdAt ?? null,
     unreadProactiveCount: conversationsRepo.countUnreadProactive(userId, characterId),
+    conversationState: statesRepo.getConversationState(userId, characterId) ?? {
+      state: 'calm' as const,
+      reason: '',
+    },
   };
 }
 

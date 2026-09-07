@@ -27,15 +27,27 @@ import { STAGE_LABELS } from '@/components/chat/strategyLabels';
 import { useChat } from '@/hooks/useChat';
 import { useAppState } from '@/hooks/useAppState';
 import { apiGet, apiPost } from '@/api/client';
-import { EMOTION_ANCHORS, STAGE_META } from '@shared/constants';
-import type { EmotionType, RelationshipStage } from '@shared/constants';
+import { EMOTION_ANCHORS, STAGE_META, CONVERSATION_STATE_META } from '@shared/constants';
+import type { ConversationState, EmotionType, RelationshipStage } from '@shared/constants';
 import { useFavorability } from '@/store/favorabilityStore';
 import type { AtmosphereEmotion } from '@/store/favorabilityStore';
 
 interface CharacterState {
   emotion: { currentEmotion: EmotionType; intensity: number };
   relationship: { stage: RelationshipStage; interactionLevel: number };
+  conversationState?: { state: ConversationState; reason: string } | null;
 }
+
+/** 对话状态 → 角标配色（柔和、和品牌同系） */
+const CONV_STATE_PILL: Record<ConversationState, string> = {
+  waiting: 'bg-slate-500/12 text-slate-400',
+  curious: 'bg-sky-500/12 text-sky-500',
+  listening: 'bg-indigo-500/12 text-indigo-400',
+  discussing: 'bg-amber-500/12 text-amber-500',
+  sharing: 'bg-teal-500/12 text-teal-500',
+  calm: 'bg-slate-500/12 text-slate-400',
+  playful: 'bg-pink-500/12 text-pink-500',
+};
 
 /** 氛围 → 聊天背景渐变 */
 const ATMOSPHERE_BG: Record<AtmosphereEmotion, string> = {
@@ -120,6 +132,10 @@ export function ChatPage(): React.ReactElement {
     ? [emotionLabel, stageLabel].filter(Boolean).join(' · ')
     : '載入中…';
 
+  // 当前 AI 对话状态：优先用每轮刷新回来的实时值，回落到角色运行态
+  const convState = state?.conversationState ?? character?.runtime?.conversationState ?? null;
+  const convStateMeta = convState ? CONVERSATION_STATE_META[convState.state] : null;
+
   return (
     <>
       <AppHeader
@@ -139,6 +155,19 @@ export function ChatPage(): React.ReactElement {
 
       {/* 心动值卡片 */}
       <FavorabilityCard />
+
+      {/* AI 当前对话状态角标（真实数据，非装饰） */}
+      {convStateMeta ? (
+        <div className="flex flex-none justify-center px-3 pt-2">
+          <span
+            className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-medium ${CONV_STATE_PILL[convStateMeta.state]}`}
+            title={convStateMeta.desc}
+          >
+            <span className="h-1.5 w-1.5 rounded-full bg-current opacity-70" />
+            {convStateMeta.label}
+          </span>
+        </div>
+      ) : null}
 
       {/* 错误提示条 */}
       {chat.error ? (

@@ -9,7 +9,12 @@ import db from '../index.js';
 import { jsonArray } from '../json.js';
 import { clamp01, newId, nowIso } from '../helpers.js';
 import { FALLBACK_EMOTION } from '../../config/defaults.js';
-import type { EmotionType, RelationshipStage, StrategyType } from '../../../shared/constants.js';
+import type {
+  EmotionType,
+  RelationshipStage,
+  StrategyType,
+  ConversationState,
+} from '../../../shared/constants.js';
 import { EMOTION_ANCHORS } from '../../../shared/constants.js';
 import type { EmotionState, RelationshipState, UserEmotionAnalysis } from '../../../shared/types.js';
 
@@ -398,4 +403,59 @@ export function upsertRelationship(
   const updated = getRelationship(userId, characterId);
   if (!updated) throw new Error(`[DB] 寫入關係狀態後讀不回來：${userId}/${characterId}`);
   return updated;
+}
+
+// ============================================================
+// 9. AI 对话状态（需求 §：AI 聊天状态影响表达）
+// ============================================================
+
+export interface ConversationStateRow {
+  state: string;
+  reason: string;
+}
+
+const VALID_CONV_STATES: readonly string[] = [
+  'waiting', 'curious', 'listening', 'discussing', 'sharing', 'calm', 'playful',
+];
+
+function toConvState(raw: string, fallback: ConversationState = 'calm'): ConversationState {
+  return (VALID_CONV_STATES.includes(raw) ? raw : fallback) as ConversationState;
+}
+
+/** 读取当前对话状态（未初始化时返回 null，由 Service 决定默认） */
+export function getConversationState(
+  userId: string,
+  characterId: string,
+): { state: ConversationState; reason: string } | null {
+  const row = db
+    .prepare('SELECT state, reason FROM conversation_states WHERE user_id = ? AND character_id = ?')
+    .get(userId, characterId) as ConversationStateRow | undefined;
+  if (!row) return null;
+  return { state: toConvState(row.state), reason: row.reason };
+}
+
+/** 写入 / 更新对话状态（UPSERT，避免竞态） */
+export function upsertConversationState(
+  userId: string,
+  characterId: string,
+  state: ConversationState,
+  reason: string,
+): { state: ConversationState; reason: string } {
+  const now = nowIso();
+  const reasonSafe = (reason ?? '').slice(0, 200);
+  db.prepare(
+    `INSERT INTO conversation_states (user_id, character_id, state, reason, updated_at)
+     VALUES (@user_id, @character_id, @state, @reason, @updated_at)
+     ON CONFLICT (user_id, character_id) DO UPDATE SET
+        state      = excluded.state,
+        reason     = excluded.reason,
+        updated_at = excluded.updated_at`,
+  ).run({
+    user_id: userId,
+    character_id: characterId,
+    state,
+    reason: reasonSafe,
+    updated_at: now,
+  });
+  return { state, reason: reasonSafe };
 }

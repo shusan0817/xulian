@@ -9,6 +9,7 @@
 
 import type {
   ChatMode,
+  ConversationState,
   EmotionType,
   FeedbackKind,
   HabitDimension,
@@ -204,6 +205,8 @@ export interface CharacterRuntimeSummary {
   lastMessagePreview: string;
   lastMessageAt: string | null;
   unreadProactiveCount: number;
+  /** 当前 AI 对话状态（影响表达的轻量氛围信号，非人格） */
+  conversationState?: { state: ConversationState; reason: string } | null;
 }
 
 // ============================================================

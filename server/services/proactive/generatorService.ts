@@ -11,7 +11,7 @@
 
 import type { AICharacter, MemoryItem, MessageRecord } from '../../../shared/types.js';
 import { completeText } from '../../agent/sdkClient.js';
-import { EMOTION_ANCHORS } from '../../../shared/constants.js';
+import { EMOTION_ANCHORS, CONVERSATION_STATE_META, type ConversationState } from '../../../shared/constants.js';
 import type { EmotionState, RelationshipState } from '../../../shared/types.js';
 import { STAGE_META } from '../../../shared/constants.js';
 import * as safetyService from '../safetyService.js';
@@ -29,6 +29,8 @@ export interface GenerateInput {
   lastUserEmotion: string | null;
   /** 最近几条主动消息文本（质量门禁 Q8 去重用） */
   recentProactiveTexts: string[];
+  /** 当前 AI 对话状态（影响语气的轻量信号，非人格） */
+  conversationState?: { state: ConversationState; reason: string } | null;
   now: Date;
 }
 
@@ -62,6 +64,16 @@ export async function generateProactiveMessage(input: GenerateInput): Promise<Ge
 
   const stageMeta = STAGE_META[relationship.stage];
 
+  // 当前对话状态（轻量语气信号）：只给一句提示，让主动消息的语气呼应最近相处氛围，
+  // 但不改写人格。状态缺失或 calm 时不加，避免每次都多一轮无意义的提示。
+  const convStateMeta =
+    input.conversationState && input.conversationState.state !== 'calm'
+      ? CONVERSATION_STATE_META[input.conversationState.state]
+      : null;
+  const convStateHint = convStateMeta
+    ? `\n## 你們最近的相處氛圍\n${convStateMeta.label}：${convStateMeta.prompt}`
+    : '';
+
   const systemPrompt = `你是「${character.name}」，一個 AI 陪伴角色。現在你要主動發一則訊息給使用者。
 
 ## 你是誰
@@ -94,7 +106,7 @@ ${memoryBlock}
 
 ## 最近的對話
 ${recentBlock}
-${input.lastUserEmotion ? `\n## 使用者上次的情緒\n${input.lastUserEmotion}\n` : ''}
+${input.lastUserEmotion ? `\n## 使用者上次的情緒\n${input.lastUserEmotion}\n` : ''}${convStateHint}
 ## 任務
 用你自己的方式，主動說一句話。可以是：
 - 想到使用者之前提過的事，問問後來怎麼樣了

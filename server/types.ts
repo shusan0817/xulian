@@ -23,6 +23,7 @@ import type {
   RelationshipStage,
   StrategyType,
   ChatMode,
+  ConversationState,
 } from '../shared/constants.js';
 import type { HabitPromptItem } from './agent/prompts.js';
 
@@ -87,6 +88,8 @@ export interface ChatContext {
   habits?: HabitPromptItem[];
   /** 未成年用户（L0b 未成年保护段） */
   isMinor?: boolean;
+  /** AI 对话状态（需求 §：AI 聊天状态影响表达）；null = 本轮未推导 */
+  conversationState?: { state: ConversationState; reason: string } | null;
 }
 
 // ============================================================

@@ -40,6 +40,7 @@ import * as userEmotionService from './userEmotionService.js';
 import * as strategyService from './strategyService.js';
 import * as memoryService from './memoryService.js';
 import * as relationshipService from './relationshipService.js';
+import * as conversationStateService from './conversationStateService.js';
 
 /** 生成阶段提示 */
 function stageEvent(stage: SseStage): ChatSseEvent {
@@ -160,6 +161,28 @@ export async function* streamChat(
   const shortTerm = memoryService.buildShortTerm(userId, conversation);
   const relationship = relationshipService.ensureState(userId, character);
 
+  // ---------- 4b. 推导并持久化 AI 对话状态（需求 §：AI 聊天状态影响表达） ----------
+  // 纯启发式、零成本；写入 conversation_states（UPSERT），供本轮 Prompt、主动消息与 UI 读取。
+  const conversationState = conversationStateService.deriveConversationState({
+    userText: text,
+    userEmotion: {
+      emotion: userEmotion.emotion,
+      valence: userEmotion.valence,
+      intensity: userEmotion.intensity,
+      shareDepth: userEmotion.shareDepth,
+      intent: userEmotion.intent,
+      needsComfort: userEmotion.needsComfort,
+    },
+    recentMessages: recent,
+    chatMode,
+  });
+  statesRepo.upsertConversationState(
+    userId,
+    characterId,
+    conversationState.state,
+    conversationState.reason,
+  );
+
   // ---------- 5. 策略选择 ----------
   const recentStrategies = recent
     .filter((m) => m.role === 'assistant' && m.strategy)
@@ -222,6 +245,7 @@ export async function* streamChat(
     modeSource: decision.modeSource,
     needsVariation: decision.needsVariation,
     isMinor: usersRepo.getById(userId)?.isMinor === true,
+    conversationState,
   };
 
   const systemPrompt = buildSystemPrompt(ctx);

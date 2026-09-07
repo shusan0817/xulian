@@ -16,6 +16,8 @@ import { proactiveRoutes } from './proactiveRoutes.js';
 import { pushRoutes } from './pushRoutes.js';
 import { feedbackRoutes } from './feedbackRoutes.js';
 import { safetyRoutes } from './safetyRoutes.js';
+import { habitsRoutes } from './habitsRoutes.js';
+import { insightsRoutes } from './insightsRoutes.js';
 
 export const apiRoutes = Router();
 
@@ -48,5 +50,9 @@ apiRoutes.use('/feedback', feedbackRoutes);
 
 // ---- 安全策略与未成年保护（V2-13）----
 apiRoutes.use('/safety', safetyRoutes);
+
+// ---- 后天习惯 / 用户偏好（V2-4「AI 了解的你」，数据控制权归用户）----
+apiRoutes.use('/habits', habitsRoutes);
+apiRoutes.use('/insights', insightsRoutes);
 
 export { metaRoutes };

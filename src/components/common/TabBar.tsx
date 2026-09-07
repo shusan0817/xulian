@@ -6,7 +6,7 @@
  */
 
 import { NavLink } from 'react-router-dom';
-import { Home, Users, BookOpen, User } from 'lucide-react';
+import { Home, Users, BookOpen, User, Sparkles } from 'lucide-react';
 import { TABS } from '@/config';
 
 const ICONS = {
@@ -14,6 +14,7 @@ const ICONS = {
   users: Users,
   book: BookOpen,
   user: User,
+  sparkles: Sparkles,
 } as const;
 
 export interface TabBarProps {

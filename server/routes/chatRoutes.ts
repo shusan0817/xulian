@@ -22,6 +22,7 @@ import {
   writeSsePing,
 } from '../http.js';
 import * as conversationsRepo from '../db/repositories/conversations.repo.js';
+import * as statesRepo from '../db/repositories/states.repo.js';
 import * as usersRepo from '../db/repositories/users.repo.js';
 import * as personaService from '../services/personaService.js';
 import { streamChat } from '../services/chatService.js';
@@ -281,6 +282,10 @@ chatRoutes.get(
     ok(res, {
       emotion: emotionService.getEmotion(userId, character),
       relationship: relationshipService.ensureState(userId, character),
+      conversationState: statesRepo.getConversationState(userId, character.id) ?? {
+        state: 'calm' as const,
+        reason: '',
+      },
     });
   }),
 );

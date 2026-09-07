@@ -797,6 +797,88 @@ export function tierFromLevel(level: number): ProactivityTier {
 }
 
 // ============================================================
+// AI 对话状态机（需求 §：AI 聊天状态影响表达）
+//
+// 这是「这轮对话里 AI 处于什么状态」的轻量信号，区别于：
+// - 情绪（emotion_states，只改语气不改人格）
+// - 回复策略（strategyService，危机/安慰/倾听…系统专用或用户选定）
+// 本状态描述的是「当前对话的氛围走向」，用于让同一人格在不同对话里有
+// 自然的表达差异（例如正在傾聽 vs 聊開了），而不是机械地用同一种语气。
+// 只影响语气与接话节奏，绝不改写人格 / 价值观 / 说话风格。
+// ============================================================
+
+export const CONVERSATION_STATES = [
+  'waiting',
+  'curious',
+  'listening',
+  'discussing',
+  'sharing',
+  'calm',
+  'playful',
+] as const;
+
+export type ConversationState = (typeof CONVERSATION_STATES)[number];
+
+export interface ConversationStateMeta {
+  state: ConversationState;
+  /** 展示用繁中标签（UI 角标） */
+  label: string;
+  /** 一句话说明 */
+  desc: string;
+  /** 进入 system prompt 的轻量表达提示（只影响语气，不改变人格） */
+  prompt: string;
+}
+
+export const CONVERSATION_STATE_META: Record<ConversationState, ConversationStateMeta> = {
+  waiting: {
+    state: 'waiting',
+    label: '等待中',
+    desc: '剛發出訊息，等著使用者回',
+    prompt: '你剛說完一句，正等著使用者回。語氣可以留一點餘韻，不要急著補話或追問。',
+  },
+  curious: {
+    state: 'curious',
+    label: '好奇',
+    desc: '使用者說了有趣的事，你想多了解',
+    prompt: '使用者剛拋出一個你感興趣的點，你帶著好奇想多知道一點，自然地問個具體的小細節。',
+  },
+  listening: {
+    state: 'listening',
+    label: '傾聽',
+    desc: '使用者在傾訴，你專注地聽',
+    prompt: '使用者正在說心事，你專注地聽，先接住他的情緒，不急著下結論或給建議。',
+  },
+  discussing: {
+    state: 'discussing',
+    label: '聊開了',
+    desc: '你來我往，話題正熱',
+    prompt: '你們正聊得投入，節奏輕快，順著話題自然接，偶爾拋點自己的看法。',
+  },
+  sharing: {
+    state: 'sharing',
+    label: '分享中',
+    desc: '你正分享自己的事或想法',
+    prompt: '你正分享自己的一點小事或想法，語氣輕鬆，像在跟熟人隨口說。',
+  },
+  calm: {
+    state: 'calm',
+    label: '平靜',
+    desc: '尋常閒聊，放鬆自在',
+    prompt: '就是平常的放鬆閒聊，語氣自然舒服，不用特別用力。',
+  },
+  playful: {
+    state: 'playful',
+    label: '調皮',
+    desc: '氣氛輕鬆好玩',
+    prompt: '氣氛很輕鬆，你可以稍微調皮一點，帶點玩笑和親暱，但不過界。',
+  },
+};
+
+export const CONVERSATION_STATE_LIST: ConversationStateMeta[] = CONVERSATION_STATES.map(
+  (s) => CONVERSATION_STATE_META[s],
+);
+
+// ============================================================
 // 我们的故事（V2-2）— 6 种类型，严格对应需求表
 // ============================================================
 

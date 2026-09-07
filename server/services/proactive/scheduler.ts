@@ -211,6 +211,7 @@ async function sendProactiveMessage(
   const conversation = conversationsRepo.findOrCreateActive(userId, character.id);
   const recentMessages = conversationsRepo.listRecentMessages(userId, conversation.id, 10);
   const lastUserEmotion = statesRepo.getLatestUserEmotion(userId, character.id);
+  const conversationState = statesRepo.getConversationState(userId, character.id);
 
   const generated = await generateProactiveMessage({
     userId,
@@ -223,6 +224,7 @@ async function sendProactiveMessage(
     recentProactiveTexts: recentMessages
       .filter((m) => m.isProactive && m.role === 'assistant')
       .map((m) => m.content),
+    conversationState,
     now,
   });
 

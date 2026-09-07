@@ -39,6 +39,8 @@ import {
   STRATEGY_FORBIDDEN,
   STRATEGY_META,
   USER_CHAT_MODES,
+  CONVERSATION_STATE_META,
+  type ConversationState,
 } from '../../shared/constants.js';
 import type { AICharacter, AiHabit } from '../../shared/types.js';
 import { pickCrisisResource, renderCrisisLine } from '../config/crisisLines.js';
@@ -340,6 +342,29 @@ ${ctx.valence < -0.2 ? '你現在情緒偏低，可以稍微安靜一些，但�
 }
 
 // ============================================================
+// L3b AI 对话状态（需求 §：AI 聊天状态影响表达）
+// ============================================================
+
+/**
+ * 对话状态层。只描述「这轮对话的氛围走向」，给模型一个轻量的表达提示，
+ * 让它同一人格在不同对话里有自然的语气差异（例如正在傾聽 vs 聊開了）。
+ * 只影响语气与接话节奏，绝不改写人格 / 价值观 / 说话风格。
+ *
+ * @param state 状态枚举；为 null 时不下发（保持向后兼容 / 灰度可控）。
+ */
+export function buildConversationStateLayer(
+  state: { state: ConversationState; reason: string } | null | undefined,
+): string {
+  if (!state) return '';
+  const meta = CONVERSATION_STATE_META[state.state];
+  if (!meta) return '';
+  return `## 你現在的對話狀態
+
+狀態：${meta.label}（${meta.desc}）
+${meta.prompt}`;
+}
+
+// ============================================================
 // L8 输出契约
 // ============================================================
 
@@ -421,6 +446,8 @@ export function buildSystemPrompt(ctx: ChatContext): string {
     buildRelationshipLayer(ctx.relationship.stage, ctx.relationship.interactionLevel),
     '',
     buildEmotionLayer(ctx.emotion),
+    '',
+    buildConversationStateLayer(ctx.conversationState),
     '',
     buildOutputLayer(ctx.character, modeLengthOverride(ctx)),
   );

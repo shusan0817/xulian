@@ -207,6 +207,28 @@ export const MIGRATIONS: Migration[] = [
       addColumnIfMissing(db, 'ai_characters', 'custom_description', "TEXT NOT NULL DEFAULT ''");
     },
   },
+
+  {
+    version: 5,
+    name: 'v5-conversation-state',
+    up(db: Database): void {
+      // AI 对话状态机（需求 §：AI 聊天状态影响表达）。
+      // 每 (user, character) 一条，UPSERT 写入，避免竞态。
+      db.exec(
+        `CREATE TABLE IF NOT EXISTS conversation_states (
+          user_id      TEXT NOT NULL,
+          character_id TEXT NOT NULL,
+          state        TEXT NOT NULL DEFAULT 'calm',
+          reason       TEXT NOT NULL DEFAULT '',
+          updated_at   TEXT NOT NULL,
+          PRIMARY KEY (user_id, character_id)
+        )`,
+      );
+      db.exec(
+        'CREATE INDEX IF NOT EXISTS idx_conv_state_updated ON conversation_states(updated_at)',
+      );
+    },
+  },
 ];
 
 /** 读取当前 schema 版本（读不到时视为 0） */
