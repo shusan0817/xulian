@@ -84,6 +84,7 @@ export function ChatPage(): React.ReactElement {
   const urlCharacterId = params.get('c');
   const urlTopic = params.get('topic');
   const urlScene = params.get('scene');
+  const urlAuto = params.get('auto');
   const [characterId, setCharacterId] = useState<string | null>(urlCharacterId);
   // 首页「今天聊什么 / 未完待续」带进来的话题，回填到输入框
   const [initialTopic, setInitialTopic] = useState<string | undefined>(urlTopic ?? undefined);
@@ -101,6 +102,22 @@ export function ChatPage(): React.ReactElement {
   );
 
   const chat = useChat({ characterId, scene });
+
+  // 进站彩蛋：日常事件选项点击后带 auto 参数进来，自动把内容发给 AI 开启剧情
+  const sendRef = useRef(chat.send);
+  sendRef.current = chat.send;
+  const autoFired = useRef(false);
+  useEffect(() => {
+    if (!urlAuto || autoFired.current) return;
+    if (!characterId) return; // 等角色（默认/指定）解析完成再发
+    autoFired.current = true;
+    const text = decodeURIComponent(urlAuto);
+    const t = window.setTimeout(() => {
+      void sendRef.current(text);
+      navigate(`/chat?c=${characterId}`, { replace: true });
+    }, 700);
+    return () => window.clearTimeout(t);
+  }, [characterId, urlAuto, navigate]);
   const { atmosphere } = useFavorability();
   const [state, setState] = useState<CharacterState | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);

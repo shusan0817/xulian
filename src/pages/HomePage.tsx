@@ -7,7 +7,7 @@
  *  - 「今天的狀態」                  → 由最近互动时间 + 今日主动消息数派生，不编造
  */
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { AppHeader } from '@/components/common/AppHeader';
@@ -18,7 +18,12 @@ import { SmallTopicsSection } from '@/components/home/SmallTopicsSection';
 import { TodayStatusCard } from '@/components/home/TodayStatusCard';
 import { UnfinishedSection } from '@/components/home/UnfinishedSection';
 import { RecentMemoriesSection } from '@/components/home/RecentMemoriesSection';
+import { AnniversaryCard } from '@/components/home/AnniversaryCard';
+import { ConfettiOverlay } from '@/components/celebrate/ConfettiOverlay';
+import { DailyEventModal } from '@/components/DailyEventModal';
 import { useAppState } from '@/hooks/useAppState';
+import { useAnniversary } from '@/hooks/useAnniversary';
+import { useDailyEvent } from '@/hooks/useDailyEvent';
 import { useProactive } from '@/hooks/useProactive';
 import { EMOTION_ANCHORS, STAGE_META } from '@shared/constants';
 import { formatRelativeTime } from '@/utils/time';
@@ -32,6 +37,21 @@ export function HomePage(): React.ReactElement {
     () => characters.find((c) => c.id === defaultCharacterId) ?? characters[0] ?? null,
     [characters, defaultCharacterId],
   );
+
+  // 纪念日里程碑（命中当天 → 首页渲染彩带 + AI 专属问候横幅）
+  const { milestone } = useAnniversary(character?.name);
+  const todayKey = new Date().toISOString().slice(0, 10);
+  const [celebrated, setCelebrated] = useState(
+    sessionStorage.getItem('xulian.celebrated.v1') === todayKey,
+  );
+  const showCelebrate = Boolean(milestone) && !celebrated && Boolean(character);
+  const dismissCelebrate = (): void => {
+    sessionStorage.setItem('xulian.celebrated.v1', todayKey);
+    setCelebrated(true);
+  };
+
+  // 进站彩蛋：随机日常事件弹窗（25% 触发，需已有 AI 角色）
+  const { event: dailyEvent, dismiss: dismissDaily } = useDailyEvent(Boolean(character));
 
   const emotion = character ? EMOTION_ANCHORS[character.runtime.emotion.currentEmotion] : null;
   const stage = character ? STAGE_META[character.runtime.relationship.stage] : null;
@@ -51,6 +71,8 @@ export function HomePage(): React.ReactElement {
 
   return (
     <>
+      {showCelebrate ? <ConfettiOverlay onDone={dismissCelebrate} /> : null}
+
       <AppHeader
         title="需戀"
         subtitle="一個記得你、也懂你的陪伴角色"
@@ -58,6 +80,24 @@ export function HomePage(): React.ReactElement {
       />
 
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-3 xl-no-scrollbar">
+        {showCelebrate && character ? (
+          <section className="rounded-3xl bg-gradient-to-br from-[var(--xl-blush)] to-[var(--xl-blush-deep)] p-4 text-white shadow-[var(--xl-shadow)]">
+            <div className="flex items-center gap-2 text-[13px] font-semibold">
+              🎉 今天是 {milestone!.label}
+            </div>
+            <p className="mt-2 text-[14px] leading-relaxed">{milestone!.greeting}</p>
+            <button
+              onClick={() => {
+                dismissCelebrate();
+                navigate(`/chat?c=${character.id}`);
+              }}
+              className="mt-3 rounded-full bg-white/95 px-4 py-1.5 text-[13px] font-medium text-[var(--xl-blush-deep)] active:scale-95"
+            >
+              和 TA 聊聊
+            </button>
+          </section>
+        ) : null}
+
         {loading ? (
           <div className="py-16 text-center text-[13px] text-[var(--xl-sub)]">載入中…</div>
         ) : error ? (
@@ -116,6 +156,9 @@ export function HomePage(): React.ReactElement {
                 </span>
               </div>
             </section>
+
+            {/* 纪念日：相识天数 + 里程碑 + 倒计时（顶部状态卡片） */}
+            <AnniversaryCard character={character} />
 
             {/* 今天聊什么（AI 小话题）：给不知道聊什么的用户一个入口 */}
             <SmallTopicsSection />
@@ -211,6 +254,15 @@ export function HomePage(): React.ReactElement {
           </>
         )}
       </div>
+
+      {dailyEvent && character ? (
+        <DailyEventModal
+          event={dailyEvent}
+          characterId={character.id}
+          characterName={character.name}
+          onClose={dismissDaily}
+        />
+      ) : null}
     </>
   );
 }
