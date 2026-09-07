@@ -6,6 +6,7 @@
  */
 
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 
 import { AppHeader } from '@/components/common/AppHeader';
 import { Button } from '@/components/common/Button';
@@ -48,14 +49,22 @@ export function MemoryPage(): React.ReactElement {
         subtitle={`${memories.length} 則被記住的事`}
         showBack={false}
         right={
-          memories.length > 0 ? (
-            <button
-              onClick={() => setConfirmClear(true)}
-              className="text-[13px] text-[var(--xl-blush-deep)] active:opacity-60"
+          <div className="flex items-center gap-3">
+            <Link
+              to={`/memory-lab?c=${encodeURIComponent(defaultCharacterId ?? '')}`}
+              className="text-[13px] text-[var(--xl-ink)] active:opacity-60"
             >
-              清空
-            </button>
-          ) : null
+              記憶實驗室 →
+            </Link>
+            {memories.length > 0 ? (
+              <button
+                onClick={() => setConfirmClear(true)}
+                className="text-[13px] text-[var(--xl-blush-deep)] active:opacity-60"
+              >
+                清空
+              </button>
+            ) : null}
+          </div>
         }
       />
 

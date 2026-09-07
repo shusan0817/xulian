@@ -27,10 +27,19 @@ import { STAGE_LABELS } from '@/components/chat/strategyLabels';
 import { useChat } from '@/hooks/useChat';
 import { useAppState } from '@/hooks/useAppState';
 import { apiGet, apiPost } from '@/api/client';
-import { EMOTION_ANCHORS, STAGE_META, CONVERSATION_STATE_META } from '@shared/constants';
+import { EMOTION_ANCHORS, STAGE_META, CONVERSATION_STATE_META, CHAT_SCENES } from '@shared/constants';
 import type { ConversationState, EmotionType, RelationshipStage } from '@shared/constants';
 import { useFavorability } from '@/store/favorabilityStore';
 import type { AtmosphereEmotion } from '@/store/favorabilityStore';
+import { SceneSelector, type SceneValue } from '@/components/chat/SceneSelector';
+
+/** 把 URL 里的 scene 参数解析成一个场景值：匹配预设 → 该预设；非空字符串 → 自订；否则 null */
+function resolveScene(param: string | null): SceneValue | null {
+  if (!param) return null;
+  const preset = CHAT_SCENES.find((s) => s.id === param);
+  if (preset) return { id: preset.id, label: preset.label, hint: preset.hint };
+  return { id: 'custom', label: '自訂', hint: param };
+}
 
 interface CharacterState {
   emotion: { currentEmotion: EmotionType; intensity: number };
@@ -74,9 +83,12 @@ export function ChatPage(): React.ReactElement {
 
   const urlCharacterId = params.get('c');
   const urlTopic = params.get('topic');
+  const urlScene = params.get('scene');
   const [characterId, setCharacterId] = useState<string | null>(urlCharacterId);
   // 首页「今天聊什么 / 未完待续」带进来的话题，回填到输入框
   const [initialTopic, setInitialTopic] = useState<string | undefined>(urlTopic ?? undefined);
+  // 聊天场景：从 URL 的 scene 参数解析（预设 id 或自订文案），影响下一次发送的 persona
+  const [scene, setScene] = useState<SceneValue | null>(() => resolveScene(urlScene));
 
   // 没有指定角色时用默认角色
   useEffect(() => {
@@ -88,7 +100,7 @@ export function ChatPage(): React.ReactElement {
     [characters, characterId],
   );
 
-  const chat = useChat({ characterId });
+  const chat = useChat({ characterId, scene });
   const { atmosphere } = useFavorability();
   const [state, setState] = useState<CharacterState | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -171,6 +183,11 @@ export function ChatPage(): React.ReactElement {
           </span>
         </div>
       ) : null}
+
+      {/* 聊天场景选择器（写入下一次发送的 persona） */}
+      <div className="flex flex-none justify-center px-3 pt-2">
+        <SceneSelector value={scene} onChange={setScene} />
+      </div>
 
       {/* 错误提示条 */}
       {chat.error ? (

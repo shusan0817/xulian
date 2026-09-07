@@ -75,6 +75,9 @@ chatRoutes.post(
         ? normalizeChatMode(body.chatMode.trim())
         : undefined;
 
+    // V2：本轮聊天场景。不传或空 → 服务端回落到角色 scenePreset / 无场景
+    const scene = typeof body.scene === 'string' && body.scene.trim() ? body.scene.trim() : undefined;
+
     initSseResponse(res);
 
     const controller = new AbortController();
@@ -94,7 +97,7 @@ chatRoutes.post(
     try {
       logger.info('[Chat] AI request started', { userId, characterId });
       const events = streamChat(
-        { userId, characterId, conversationId, text, clientMessageId, chatMode },
+        { userId, characterId, conversationId, text, clientMessageId, chatMode, scene },
         {
           getCharacter: (uid, cid) => personaService.getCharacter(uid, cid),
           getPrivacy: (uid) => {
@@ -158,6 +161,9 @@ chatRoutes.post(
     const lastUser = [...recent].reverse().find((m) => m.role === 'user');
     if (!lastUser) throw new ApiError(ErrorCode.BAD_REQUEST, '沒有可重新生成的訊息');
 
+    // V2：本轮聊天场景（与 /stream 同口径）。不传或空 → 回落角色 scenePreset
+    const scene = typeof body.scene === 'string' && body.scene.trim() ? body.scene.trim() : undefined;
+
     initSseResponse(res);
     const controller = new AbortController();
     let closed = false;
@@ -174,7 +180,7 @@ chatRoutes.post(
 
     try {
       const events = streamChat(
-        { userId, characterId, conversationId, text: lastUser.content, clientMessageId: newId() },
+        { userId, characterId, conversationId, text: lastUser.content, clientMessageId: newId(), scene },
         {
           getCharacter: (uid, cid) => personaService.getCharacter(uid, cid),
           getPrivacy: (uid) => {

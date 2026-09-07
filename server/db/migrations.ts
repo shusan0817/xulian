@@ -149,6 +149,7 @@ export const MIGRATIONS: Migration[] = [
         "TEXT NOT NULL DEFAULT 'natural'",
       );
       addColumnIfMissing(db, 'ai_characters', 'chat_mode', 'TEXT');
+      addColumnIfMissing(db, 'ai_characters', 'scene_preset', 'TEXT');
       addColumnIfMissing(
         db,
         'ai_characters',
@@ -227,6 +228,16 @@ export const MIGRATIONS: Migration[] = [
       db.exec(
         'CREATE INDEX IF NOT EXISTS idx_conv_state_updated ON conversation_states(updated_at)',
       );
+    },
+  },
+
+  {
+    version: 6,
+    name: 'v6-character-scene-preset',
+    up(db: Database): void {
+      // 聊天场景预设（设计 §4，与 chat_mode 同级）：作为人格 Prompt 的背景设定，不改性格。
+      // 幂等加列：老库（本次迁移前）可能没有这一列，新库（v2 已加过）会跳过。
+      addColumnIfMissing(db, 'ai_characters', 'scene_preset', 'TEXT');
     },
   },
 ];

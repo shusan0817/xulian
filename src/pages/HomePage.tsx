@@ -13,7 +13,9 @@ import { useNavigate } from 'react-router-dom';
 import { AppHeader } from '@/components/common/AppHeader';
 import { Avatar } from '@/components/common/Avatar';
 import { EmptyState } from '@/components/common/EmptyState';
+import { RapportCard } from '@/components/home/RapportCard';
 import { SmallTopicsSection } from '@/components/home/SmallTopicsSection';
+import { TodayStatusCard } from '@/components/home/TodayStatusCard';
 import { UnfinishedSection } from '@/components/home/UnfinishedSection';
 import { useAppState } from '@/hooks/useAppState';
 import { useProactive } from '@/hooks/useProactive';
@@ -163,6 +165,9 @@ export function HomePage(): React.ReactElement {
 
             {/* 未完待续：用户之前留下没说完的话题 */}
             <UnfinishedSection />
+
+            {/* 交流默契（真实派生，中性文案，区别于聊天页「心动值」） */}
+            <RapportCard character={character} />
 
             {/* 角色管理 */}
             <section className="rounded-3xl bg-[var(--xl-card)] p-4 shadow-[var(--xl-shadow)]">

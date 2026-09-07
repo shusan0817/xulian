@@ -157,6 +157,12 @@ export interface AICharacter {
    * null / undefined 等价于 'auto'（迁移前的老库没有这一列）。
    */
   chatMode?: ChatMode | null;
+  /**
+   * V2：聊天场景（聊天模式同级的持久设置，设计 §4）。
+   * 作为 AI 人格 Prompt 的「背景设定」注入，不改性格。
+   * 空串 / undefined 等价于无场景（迁移前的老库没有这一列）。
+   */
+  scenePreset?: string;
   isDefault: boolean;
   createdAt: string;
   updatedAt: string;
@@ -191,6 +197,7 @@ export type CreateCharacterInput = Partial<
     | 'sliderRationality'
     | 'sliderListening'
     | 'customDescription'
+    | 'scenePreset'
     | 'isDefault'
   >
 > & { name: string };

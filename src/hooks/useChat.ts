@@ -57,10 +57,12 @@ interface UseChatOptions {
   userId?: string;
   characterId: string | null;
   conversationId?: string | null;
+  /** 聊天场景；传入后注入到 persona prompt（只影响下一次发送） */
+  scene?: { id: string; label: string; hint: string } | null;
 }
 
 export function useChat(options: UseChatOptions): UseChatResult {
-  const { characterId, conversationId } = options;
+  const { characterId, conversationId, scene } = options;
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
@@ -292,6 +294,7 @@ export function useChat(options: UseChatOptions): UseChatResult {
             characterId,
             conversationId: activeConversationId.current ?? undefined,
             text: content,
+            scene: scene?.hint ?? undefined,
           },
           { onEvent: handleEvent },
           { signal: controller.signal },
@@ -312,7 +315,7 @@ export function useChat(options: UseChatOptions): UseChatResult {
         controllerRef.current = null;
       }
     },
-    [characterId, generating, handleEvent],
+    [characterId, generating, handleEvent, scene],
   );
 
   const stop = useCallback((): void => {
@@ -341,7 +344,7 @@ export function useChat(options: UseChatOptions): UseChatResult {
     try {
       await postSse(
         '/api/chat/regenerate',
-        { characterId, conversationId: activeConversationId.current },
+        { characterId, conversationId: activeConversationId.current, scene: scene?.hint ?? undefined },
         { onEvent: handleEvent },
         { signal: controller.signal },
       );
@@ -354,7 +357,7 @@ export function useChat(options: UseChatOptions): UseChatResult {
       setStage(null);
       controllerRef.current = null;
     }
-  }, [messages, characterId, handleEvent]);
+  }, [messages, characterId, handleEvent, scene]);
 
   const removeMessage = useCallback(async (messageId: string): Promise<void> => {
     setMessages((prev) => prev.filter((m) => m.id !== messageId));

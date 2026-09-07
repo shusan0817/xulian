@@ -471,6 +471,28 @@ export function normalizeChatMode(value: unknown): ChatMode {
 }
 
 // ============================================================
+// 聊天场景（聊天场景选择器：预设场景会被写进 persona prompt）
+// ============================================================
+
+export interface ChatScene {
+  id: string;
+  label: string;
+  emoji: string;
+  /** 注入 persona prompt 的场景说明（custom 为空，由用户自行填写） */
+  hint: string;
+}
+
+/** 预设场景清单。'custom' 不在选择列表里直接出现，而是作为「自订场景」入口 */
+export const CHAT_SCENES: ChatScene[] = [
+  { id: 'daily', label: '日常相處', emoji: '🏠', hint: '（無特定場景，日常相處即可）' },
+  { id: 'campus', label: '校園時光', emoji: '🎓', hint: '你們正處於校園場景：可能是同學、學長學妹，或校園裡相遇的人，對話帶點青春感。' },
+  { id: 'medieval', label: '中世紀', emoji: '🏰', hint: '你們身處中世紀背景：城堡、騎士、魔法或王國氛圍，用符合那個世界的語氣對話。' },
+  { id: 'future', label: '未來世界', emoji: '🚀', hint: '你們身處未來世界：科技、星際或賽博背景，對話帶點未來感。' },
+  { id: 'workplace', label: '職場同事', emoji: '💼', hint: '你們是職場上的同事或前後輩，對話自然帶點工作日常的語氣。' },
+  { id: 'custom', label: '自訂場景', emoji: '✨', hint: '' },
+];
+
+// ============================================================
 // 关系阶段（需求 §9：初识 → 熟悉 → 亲近 → 默契）
 // ============================================================
 

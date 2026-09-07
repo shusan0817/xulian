@@ -28,6 +28,8 @@ import { LoginPage } from '@/pages/LoginPage';
 import { MemoryPage } from '@/pages/MemoryPage';
 import { StoryPage } from '@/pages/StoryPage';
 import { LearnedPage } from '@/pages/LearnedPage';
+import { GrowthPage } from '@/pages/GrowthPage';
+import { MemoryLabPage } from '@/pages/MemoryLabPage';
 import { RegisterPage } from '@/pages/RegisterPage';
 import { SettingsPage } from '@/pages/SettingsPage';
 import { useUserId } from '@/hooks/useUserId';
@@ -84,6 +86,8 @@ export default function App(): React.ReactElement {
           <Route path="/memories" element={<MemoryPage />} />
           <Route path="/stories" element={<StoryPage />} />
           <Route path="/learned" element={<LearnedPage />} />
+          <Route path="/growth" element={<GrowthPage />} />
+          <Route path="/memory-lab" element={<MemoryLabPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           {/* 兜底：未知路径回首页，避免白屏 */}
           <Route

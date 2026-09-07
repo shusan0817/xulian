@@ -135,7 +135,7 @@ const MINOR_GUARD_CLAUSE =
  * 人格层。核心是末尾的 4 条稳定性约束——
  * 这是「防止聊着聊着性格突变」的关键，必须在每一轮都重复下发。
  */
-export function buildPersonaLayer(character: AICharacter): string {
+export function buildPersonaLayer(character: AICharacter, scene?: string | null): string {
   const s = (v: number) => Math.max(0, Math.min(1, Number.isFinite(v) ? v : 0.5));
   const duo = (v: number, hi: string, lo: string) =>
     s(v) > 0.66 ? hi : s(v) < 0.34 ? lo : `介於${lo}與${hi}之間`;
@@ -169,7 +169,7 @@ ${character.speakingStyle || '自然、口語、不過度修飾'}
 - 主動 vs 安靜：${duo(character.sliderProactivity ?? 0.5, '會主動帶話題', '偏被動安靜')}
 - 理性 vs 感性：${duo(character.sliderRationality ?? 0.5, '偏理性分析', '偏感性共情')}
 - 傾聽 vs 建議：${duo(character.sliderListening ?? 0.5, '多傾聽少給建議', '樂於給建議')}
-${character.customDescription?.trim() ? `\n### 使用者對你的額外期望\n${character.customDescription.trim()}\n` : ''}
+${character.customDescription?.trim() ? `\n### 使用者對你的額外期望\n${character.customDescription.trim()}\n` : ''}${scene ? `\n### 當前場景（背景設定，不是你的性格）\n${scene}\n` : ''}
 
 ### 興趣
 ${interests}
@@ -435,7 +435,7 @@ export function buildSystemPrompt(ctx: ChatContext): string {
   const parts: string[] = [
     buildSafetyConstitution({ isMinor: ctx.isMinor === true }),
     '',
-    buildPersonaLayer(ctx.character),
+    buildPersonaLayer(ctx.character, ctx.scene ?? null),
   ];
 
   // L1b 插在 L1 与 L2 之间（设计 §7.2）；为空时不插入任何空行，保证 V1 输出一致

@@ -11,6 +11,7 @@ import { ApiError, asyncHandler } from '../errors.js';
 import { ok, requireUserId, resolveUser } from '../http.js';
 import * as personaService from '../services/personaService.js';
 import * as charactersRepo from '../db/repositories/characters.repo.js';
+import * as growthService from '../services/growthService.js';
 import { buildRuntime } from './userRoutes.js';
 import { logger } from '../logger.js';
 
@@ -63,6 +64,15 @@ characterRoutes.get(
     const character = personaService.getCharacter(userId, req.params.characterId);
     if (!character) throw new ApiError(ErrorCode.NOT_FOUND, '找不到這個角色');
     ok(res, { character: { ...character, runtime: buildRuntime(userId, character.id) } });
+  }),
+);
+
+/** AI 成長展示快照（唯讀，成長頁用）。兩段路徑，不與 POST/:characterId 衝突 */
+characterRoutes.get(
+  '/:characterId/growth',
+  asyncHandler((req, res) => {
+    const userId = requireUserId(req);
+    ok(res, { growth: growthService.getGrowth(userId, req.params.characterId) });
   }),
 );
 

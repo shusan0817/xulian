@@ -78,6 +78,9 @@ export async function* streamChat(
   // V2-8：聊天模式。优先级 = 本轮请求 > 角色持久设置 > auto。
   // 非法值由 normalizeChatMode 兜底为 'auto'，绝不让脏数据进 Prompt。
   const chatMode: ChatMode = normalizeChatMode(input.chatMode ?? character.chatMode ?? 'auto');
+  // V2：聊天场景。优先级 = 本轮请求 > 角色持久设置(scenePreset) > 无。
+  // 仅作为人格 Prompt 的背景设定注入，不改性格。
+  const scene: string | null = input.scene?.trim() ? input.scene.trim() : (character.scenePreset?.trim() || null);
 
   // ---------- 1. 入方向安全检查 ----------
   yield stageEvent('safety');
@@ -249,6 +252,7 @@ export async function* streamChat(
     strategy: decision.strategy,
     // ---- V2：聊天模式 ----
     chatMode: decision.chatMode,
+    scene,
     modeSource: decision.modeSource,
     needsVariation: decision.needsVariation,
     isMinor: usersRepo.getById(userId)?.isMinor === true,

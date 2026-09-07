@@ -65,6 +65,8 @@ export interface CharacterRow {
   custom_description: string;
   /** V2：聊天模式（迁移 v2 新增列，老库可能为 NULL） */
   chat_mode?: string | null;
+  /** V2：聊天场景（迁移新增列，老库可能为 NULL；作为人格 Prompt 的背景设定，不改性格） */
+  scene_preset?: string | null;
   is_default: number;
   created_at: string;
   updated_at: string;
@@ -128,6 +130,8 @@ export function rowToCharacter(row: CharacterRow): AICharacter {
     customDescription: row.custom_description ?? '',
     // 脏数据 / 老库 NULL 一律回落 'auto'，绝不让非法值进 Prompt
     chatMode: row.chat_mode ? normalizeChatMode(row.chat_mode) : 'auto',
+    // 场景预设：老库 NULL / 空串回落 ''（= 无场景），不进 Prompt
+    scenePreset: row.scene_preset ?? '',
     isDefault: row.is_default === 1,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -197,6 +201,7 @@ export function create(userId: string, input: CreateCharacterInput): AICharacter
         proactivity_level, proactive_enabled, proactive_settings,
         slider_playfulness, slider_humor, slider_verbosity, slider_proactivity,
         slider_rationality, slider_listening, custom_description,
+        chat_mode, scene_preset,
         is_default,
         created_at, updated_at
      ) VALUES (
@@ -206,6 +211,7 @@ export function create(userId: string, input: CreateCharacterInput): AICharacter
         @proactivity_level, @proactive_enabled, @proactive_settings,
         @slider_playfulness, @slider_humor, @slider_verbosity, @slider_proactivity,
         @slider_rationality, @slider_listening, @custom_description,
+        @chat_mode, @scene_preset,
         @is_default,
         @created_at, @updated_at
      )`,
@@ -244,6 +250,9 @@ export function create(userId: string, input: CreateCharacterInput): AICharacter
     slider_rationality: clamp01(input.sliderRationality ?? 0.5),
     slider_listening: clamp01(input.sliderListening ?? 0.5),
     custom_description: input.customDescription ?? '',
+    // 聊天模式与场景预设：创建时未传则留 NULL / 空串，回落到默认（auto / 无场景）
+    chat_mode: null,
+    scene_preset: input.scenePreset ?? '',
     is_default: shouldBeDefault ? 1 : 0,
     created_at: now,
     updated_at: now,
@@ -320,6 +329,7 @@ export function update(
   }
   if (patch.isDefault !== undefined) push('is_default', patch.isDefault ? 1 : 0);
   if (patch.chatMode !== undefined) push('chat_mode', normalizeChatMode(patch.chatMode));
+  if (patch.scenePreset !== undefined) push('scene_preset', patch.scenePreset);
 
   if (fields.length === 0) return current;
 

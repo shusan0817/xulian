@@ -31,6 +31,7 @@ import {
   REPLY_LENGTHS,
   REPLY_LENGTH_LABELS,
   STAGE_META,
+  CHAT_SCENES,
 } from '@shared/constants';
 import type {
   EmotionType,
@@ -86,6 +87,8 @@ export function CharacterEditPage(): React.ReactElement {
   const [sliderRationality, setSliderRationality] = useState(0.5);
   const [sliderListening, setSliderListening] = useState(0.5);
   const [customDescription, setCustomDescription] = useState('');
+  /** 场景设定：选中的预设 hint 或自订文本（空字符串 = 未设定） */
+  const [scenePreset, setScenePreset] = useState('');
 
   // 载入预设模板
   useEffect(() => {
@@ -121,6 +124,8 @@ export function CharacterEditPage(): React.ReactElement {
         setSliderRationality(Number(c.sliderRationality ?? 0.5));
         setSliderListening(Number(c.sliderListening ?? 0.5));
         setCustomDescription(String(c.customDescription ?? ''));
+        // 场景设定：后端尚未给 shared/types.ts 加 scenePreset 字段，这里从任意字段里读取（c 已是 Record<string, unknown>）
+        setScenePreset(String(c.scenePreset ?? ''));
       })
       .catch(() => undefined);
   }, [id]);
@@ -161,6 +166,7 @@ export function CharacterEditPage(): React.ReactElement {
       sliderRationality,
       sliderListening,
       customDescription,
+      scenePreset,
     };
 
     try {
@@ -196,6 +202,11 @@ export function CharacterEditPage(): React.ReactElement {
         ? 'bg-[var(--xl-blush)] text-white'
         : 'bg-[var(--xl-mist)] text-[var(--xl-ink)]'
     }`;
+
+  // 当前场景设定对应的 chip id（用于高亮）：匹配到预设 hint → 该 id；非空自订文本 → 'custom'；空 → ''
+  const activeSceneId = scenePreset
+    ? CHAT_SCENES.find((s) => s.id !== 'custom' && s.hint === scenePreset)?.id ?? 'custom'
+    : '';
 
   const showPresets = !isEdit && presets.length > 0;
 
@@ -411,6 +422,52 @@ export function CharacterEditPage(): React.ReactElement {
               onChange={(e) => setCustomDescription(e.target.value)}
               placeholder="例如：你希望 TA 更溫柔、少說教，多聽你說。"
             />
+          </div>
+        </section>
+
+        {/* 场景设定 */}
+        <section>
+          <h3 className={sectionTitle}>場景設定</h3>
+          <div className="space-y-3 rounded-2xl bg-[var(--xl-card)] p-3 shadow-[var(--xl-shadow)]">
+            <p className="text-[12px] leading-snug text-[var(--xl-sub)]">
+              選一個場景，會影響這個角色跟你聊天時的語氣與背景設定；也可以自訂。
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {CHAT_SCENES.map((scene) => (
+                <button
+                  key={scene.id}
+                  type="button"
+                  onClick={() => {
+                    if (scene.id === 'custom') {
+                      // 切换自訂模式：再次點擊且已在自訂 → 清除；否則保留已填文本
+                      setScenePreset((prev) => (activeSceneId === 'custom' ? '' : prev));
+                    } else {
+                      setScenePreset(scene.hint);
+                    }
+                  }}
+                  className={chipClass(activeSceneId === scene.id)}
+                >
+                  {scene.emoji} {scene.label}
+                </button>
+              ))}
+            </div>
+            {activeSceneId === 'custom' ? (
+              <Textarea
+                rows={3}
+                value={scenePreset}
+                onChange={(e) => setScenePreset(e.target.value)}
+                placeholder="描述你們現在的場景，例如：我們是鄰居，常在樓下便利商店遇到。"
+              />
+            ) : null}
+            {scenePreset ? (
+              <button
+                type="button"
+                onClick={() => setScenePreset('')}
+                className="text-[12px] text-[var(--xl-sub)] underline active:opacity-70"
+              >
+                清除場景設定
+              </button>
+            ) : null}
           </div>
         </section>
 

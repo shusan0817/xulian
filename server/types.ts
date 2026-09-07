@@ -75,6 +75,8 @@ export interface ChatContext {
   // ---- V2：聊天模式（设计 §4） ----
   /** 本轮生效的聊天模式；auto = AI 自选。默认 'auto' 以保持向后兼容 */
   chatMode?: ChatMode;
+  /** 当前生效的聊天场景（提示词用），优先级：本轮请求 > 角色持久设置 > 无 */
+  scene?: string | null;
   /**
    * 模式来源：
    * - user   = 用户主动选定（优先级链第 3 级）
@@ -241,6 +243,8 @@ export interface ChatStreamInput {
    * 再没有则 'auto'。非法值一律按 'auto' 处理。
    */
   chatMode?: ChatMode;
+  /** 本轮场景（提示词注入），不传则回落角色 scenePreset */
+  scene?: string;
 }
 
 export interface NotificationPayload {
