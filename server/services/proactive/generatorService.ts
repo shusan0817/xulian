@@ -15,6 +15,7 @@ import { EMOTION_ANCHORS } from '../../../shared/constants.js';
 import type { EmotionState, RelationshipState } from '../../../shared/types.js';
 import { STAGE_META } from '../../../shared/constants.js';
 import * as safetyService from '../safetyService.js';
+import { checkProactiveQuality } from './qualityGate.js';
 import { logger } from '../../logger.js';
 
 export interface GenerateInput {
@@ -26,6 +27,8 @@ export interface GenerateInput {
   recentMessages: MessageRecord[];
   /** 用户最近一次情绪描述（可能为 null） */
   lastUserEmotion: string | null;
+  /** 最近几条主动消息文本（质量门禁 Q8 去重用） */
+  recentProactiveTexts: string[];
   now: Date;
 }
 
@@ -128,6 +131,18 @@ ${input.lastUserEmotion ? `\n## 使用者上次的情緒\n${input.lastUserEmotio
       violations: check.violations,
     });
     return { text: null, blockedReason: check.violations.join(',') };
+  }
+
+  // 质量门禁：10 项检查全部通过才允许发送；不通过则按「生成失败」处理
+  // （调度器会按 1/5/15 分钟退避重试，3 次都不过就放弃这一轮，绝不硬发低质消息）
+  const quality = checkProactiveQuality(text, {
+    character,
+    recentProactive: input.recentProactiveTexts,
+    memories: input.memories,
+    recentMessages: input.recentMessages,
+  });
+  if (!quality.passed) {
+    return { text: null, blockedReason: `quality:${quality.failures.join(',')}` };
   }
 
   return { text, blockedReason: null };

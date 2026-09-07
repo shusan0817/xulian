@@ -220,6 +220,9 @@ async function sendProactiveMessage(
     memories,
     recentMessages,
     lastUserEmotion: lastUserEmotion ? lastUserEmotion.emotion : null,
+    recentProactiveTexts: recentMessages
+      .filter((m) => m.isProactive && m.role === 'assistant')
+      .map((m) => m.content),
     now,
   });
 
