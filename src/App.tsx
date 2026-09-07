@@ -24,6 +24,8 @@ import { HomePage } from '@/pages/HomePage';
 import { ChatPage } from '@/pages/ChatPage';
 import { CharacterListPage } from '@/pages/CharacterListPage';
 import { CharacterEditPage } from '@/pages/CharacterEditPage';
+import { CharacterDetailPage } from '@/pages/CharacterDetailPage';
+import { UnfinishedPage } from '@/pages/UnfinishedPage';
 import { LoginPage } from '@/pages/LoginPage';
 import { MemoryPage } from '@/pages/MemoryPage';
 import { StoryPage } from '@/pages/StoryPage';
@@ -83,6 +85,8 @@ export default function App(): React.ReactElement {
           <Route path="/characters" element={<CharacterListPage />} />
           <Route path="/characters/new" element={<CharacterEditPage />} />
           <Route path="/characters/:id" element={<CharacterEditPage />} />
+          <Route path="/characters/:id/detail" element={<CharacterDetailPage />} />
+          <Route path="/unfinished" element={<UnfinishedPage />} />
           <Route path="/memories" element={<MemoryPage />} />
           <Route path="/stories" element={<StoryPage />} />
           <Route path="/learned" element={<LearnedPage />} />

@@ -17,6 +17,7 @@ import { RapportCard } from '@/components/home/RapportCard';
 import { SmallTopicsSection } from '@/components/home/SmallTopicsSection';
 import { TodayStatusCard } from '@/components/home/TodayStatusCard';
 import { UnfinishedSection } from '@/components/home/UnfinishedSection';
+import { RecentMemoriesSection } from '@/components/home/RecentMemoriesSection';
 import { useAppState } from '@/hooks/useAppState';
 import { useProactive } from '@/hooks/useProactive';
 import { EMOTION_ANCHORS, STAGE_META } from '@shared/constants';
@@ -54,11 +55,6 @@ export function HomePage(): React.ReactElement {
         title="需戀"
         subtitle="一個記得你、也懂你的陪伴角色"
         showBack={false}
-        right={
-          <span className="rounded-full bg-[var(--xl-mist)] px-2 py-0.5 text-[11px] text-[var(--xl-sub)]">
-            測試版 · Beta
-          </span>
-        }
       />
 
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-3 xl-no-scrollbar">
@@ -165,6 +161,9 @@ export function HomePage(): React.ReactElement {
 
             {/* 未完待续：用户之前留下没说完的话题 */}
             <UnfinishedSection />
+
+            {/* 最近记忆：让首页一眼感到「TA 真的在记得我」 */}
+            <RecentMemoriesSection />
 
             {/* 交流默契（真实派生，中性文案，区别于聊天页「心动值」） */}
             <RapportCard character={character} />

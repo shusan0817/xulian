@@ -94,7 +94,7 @@ check('getGrowth 返回完整聚合且类型正确', () => {
     if (!(k in g)) throw new Error(`缺少字段 ${k}`);
   }
   for (const k of ['memories', 'stories', 'milestones', 'habits', 'insights', 'activeDays', 'totalMessages', 'interactionLevelPct'] as const) {
-    if (typeof (g as Record<string, unknown>)[k] !== 'number') {
+    if (typeof (g as unknown as Record<string, unknown>)[k] !== 'number') {
       throw new Error(`字段 ${k} 不是 number`);
     }
   }

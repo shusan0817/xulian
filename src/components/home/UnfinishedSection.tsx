@@ -72,6 +72,12 @@ export function UnfinishedSection(): React.ReactElement | null {
             {items.length}
           </span>
         ) : null}
+        <button
+          onClick={() => navigate('/unfinished')}
+          className="ml-auto text-[12px] text-[var(--xl-sub)] active:opacity-60"
+        >
+          查看全部
+        </button>
       </div>
 
       <div className="space-y-2">

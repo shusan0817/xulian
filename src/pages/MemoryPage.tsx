@@ -6,7 +6,7 @@
  */
 
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 
 import { AppHeader } from '@/components/common/AppHeader';
 import { Button } from '@/components/common/Button';
@@ -22,7 +22,10 @@ import { formatRelativeTime } from '@/utils/time';
 
 export function MemoryPage(): React.ReactElement {
   const { defaultCharacterId, user, refresh: refreshApp } = useAppState();
-  const { memories, loading, refresh, update, remove, clearAll } = useMemories(defaultCharacterId);
+  const [params] = useSearchParams();
+  const characterParam = params.get('c');
+  const effectiveCharacterId = characterParam || defaultCharacterId;
+  const { memories, loading, refresh, update, remove, clearAll } = useMemories(effectiveCharacterId);
 
   const [filter, setFilter] = useState<MemoryCategory | 'all'>('all');
   const [editing, setEditing] = useState<{ id: string; content: string } | null>(null);
@@ -51,7 +54,7 @@ export function MemoryPage(): React.ReactElement {
         right={
           <div className="flex items-center gap-3">
             <Link
-              to={`/memory-lab?c=${encodeURIComponent(defaultCharacterId ?? '')}`}
+              to={`/memory-lab?c=${encodeURIComponent(effectiveCharacterId ?? '')}`}
               className="text-[13px] text-[var(--xl-ink)] active:opacity-60"
             >
               記憶實驗室 →

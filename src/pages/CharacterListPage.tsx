@@ -77,10 +77,17 @@ export function CharacterListPage(): React.ReactElement {
             return (
               <div
                 key={c.id}
-                className="rounded-2xl bg-[var(--xl-card)] p-3 shadow-[var(--xl-shadow)]"
+                onClick={() => navigate(`/characters/${c.id}/detail`)}
+                className="cursor-pointer rounded-2xl bg-[var(--xl-card)] p-3 shadow-[var(--xl-shadow)] active:opacity-70"
               >
                 <div className="flex items-start gap-3">
-                  <button onClick={() => navigate(`/chat?c=${c.id}`)} className="flex-none">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigate(`/chat?c=${c.id}`);
+                    }}
+                    className="flex-none"
+                  >
                     <Avatar spec={c.avatar} name={c.name} size={48} ring={isDefault} />
                   </button>
 
@@ -109,14 +116,20 @@ export function CharacterListPage(): React.ReactElement {
 
                 <div className="mt-2.5 flex items-center gap-2 border-t border-[var(--xl-mist)] pt-2.5">
                   <button
-                    onClick={() => navigate(`/characters/${c.id}`)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigate(`/characters/${c.id}`);
+                    }}
                     className="rounded-full bg-[var(--xl-mist)] px-3 py-1 text-[12px] text-[var(--xl-ink)] active:opacity-70"
                   >
                     編輯
                   </button>
                   {!isDefault ? (
                     <button
-                      onClick={() => void setDefault(c.id)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void setDefault(c.id);
+                      }}
                       className="rounded-full bg-[var(--xl-mist)] px-3 py-1 text-[12px] text-[var(--xl-ink)] active:opacity-70"
                     >
                       設為預設
@@ -124,7 +137,10 @@ export function CharacterListPage(): React.ReactElement {
                   ) : null}
                   <div className="flex-1" />
                   <button
-                    onClick={() => setPendingDelete(c)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setPendingDelete(c);
+                    }}
                     className="rounded-full px-3 py-1 text-[12px] text-[var(--xl-blush-deep)] active:opacity-70"
                   >
                     刪除
