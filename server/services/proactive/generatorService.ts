@@ -31,6 +31,8 @@ export interface GenerateInput {
   recentProactiveTexts: string[];
   /** 当前 AI 对话状态（影响语气的轻量信号，非人格） */
   conversationState?: { state: ConversationState; reason: string } | null;
+  /** 未完待续：本次主动消息优先接续的未完话题（可能为空） */
+  unfinishedTopic?: { topic: string; resumeHint: string } | null;
   now: Date;
 }
 
@@ -74,6 +76,11 @@ export async function generateProactiveMessage(input: GenerateInput): Promise<Ge
     ? `\n## 你們最近的相處氛圍\n${convStateMeta.label}：${convStateMeta.prompt}`
     : '';
 
+  // 未完待续：优先自然接续用户留下的未完话题（P0 话题延续）
+  const unfinishedBlock = input.unfinishedTopic
+    ? `\n## 你們還沒聊完的話題\n${input.unfinishedTopic.topic}\n（你可以這樣自然接上：${input.unfinishedTopic.resumeHint}）`
+    : '';
+
   const systemPrompt = `你是「${character.name}」，一個 AI 陪伴角色。現在你要主動發一則訊息給使用者。
 
 ## 你是誰
@@ -106,14 +113,14 @@ ${memoryBlock}
 
 ## 最近的對話
 ${recentBlock}
-${input.lastUserEmotion ? `\n## 使用者上次的情緒\n${input.lastUserEmotion}\n` : ''}${convStateHint}
+${input.lastUserEmotion ? `\n## 使用者上次的情緒\n${input.lastUserEmotion}\n` : ''}${convStateHint}${unfinishedBlock}
 ## 任務
 用你自己的方式，主動說一句話。可以是：
 - 想到使用者之前提過的事，問問後來怎麼樣了
 - 分享一句符合你性格的話
 - 順著現在的時間自然地問候
 - 從你們最近聊過的事自然接下去
-
+${input.unfinishedTopic ? '- 如果上面有「你們還沒聊完的話題」，優先自然地接上它，不要生硬地提「上次」\n' : ''}
 只輸出這一則訊息本身，繁體中文，20–60 字。`;
 
   let text = '';

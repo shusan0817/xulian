@@ -56,6 +56,7 @@ export type ChatSseEvent =
   | { type: 'emotion'; emotion: EmotionType; intensity: number; reason: string }
   /** 抽到新记忆 */
   | { type: 'memory'; action: 'added' | 'updated'; items: Array<{ id: string; content: string; category: MemoryCategory }> }
+  | { type: 'story'; action: 'added' | 'updated'; items: Array<{ id: string; title: string; type: string }> }
   /** 关系更新（升级时前端放小动画） */
   | { type: 'relationship'; stage: RelationshipStage; interactionLevel: number; leveledUp: boolean }
   /** 正常结束 */

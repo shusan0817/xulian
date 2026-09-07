@@ -73,7 +73,10 @@ export function ChatPage(): React.ReactElement {
   const { characters, defaultCharacterId, loading: appLoading } = useAppState();
 
   const urlCharacterId = params.get('c');
+  const urlTopic = params.get('topic');
   const [characterId, setCharacterId] = useState<string | null>(urlCharacterId);
+  // 首页「今天聊什么 / 未完待续」带进来的话题，回填到输入框
+  const [initialTopic, setInitialTopic] = useState<string | undefined>(urlTopic ?? undefined);
 
   // 没有指定角色时用默认角色
   useEffect(() => {
@@ -261,6 +264,7 @@ export function ChatPage(): React.ReactElement {
       <ChatComposer
         disabled={!characterId}
         generating={chat.generating}
+        initialValue={initialTopic}
         onSend={(text) => void chat.send(text)}
         onStop={chat.stop}
         placeholder={character ? `和${character.name}說點什麼…` : '說點什麼…'}

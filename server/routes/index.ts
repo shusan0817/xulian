@@ -18,6 +18,9 @@ import { feedbackRoutes } from './feedbackRoutes.js';
 import { safetyRoutes } from './safetyRoutes.js';
 import { habitsRoutes } from './habitsRoutes.js';
 import { insightsRoutes } from './insightsRoutes.js';
+import { storiesRoutes } from './storiesRoutes.js';
+import { unfinishedRoutes } from './unfinishedRoutes.js';
+import { smallTopicsRoutes } from './smallTopicsRoutes.js';
 
 export const apiRoutes = Router();
 
@@ -54,5 +57,14 @@ apiRoutes.use('/safety', safetyRoutes);
 // ---- 后天习惯 / 用户偏好（V2-4「AI 了解的你」，数据控制权归用户）----
 apiRoutes.use('/habits', habitsRoutes);
 apiRoutes.use('/insights', insightsRoutes);
+
+// ---- 我们的故事（V2-2）----
+apiRoutes.use('/stories', storiesRoutes);
+
+// ---- 未完待续（P0 话题延续）----
+apiRoutes.use('/unfinished', unfinishedRoutes);
+
+// ---- AI 小话题 / 今天聊什么（P1）----
+apiRoutes.use('/small-topics', smallTopicsRoutes);
 
 export { metaRoutes };

@@ -41,6 +41,8 @@ import * as strategyService from './strategyService.js';
 import * as memoryService from './memoryService.js';
 import * as relationshipService from './relationshipService.js';
 import * as conversationStateService from './conversationStateService.js';
+import * as storyService from './storyService.js';
+import * as unfinishedTopicService from './unfinishedTopicService.js';
 
 /** 生成阶段提示 */
 function stageEvent(stage: SseStage): ChatSseEvent {
@@ -158,6 +160,10 @@ export async function* streamChat(
     characterId,
     privacy.longTermMemoryEnabled,
   );
+  // 我们的故事：注入最近 3 条（buildMemoryLayer 已在 systemPrompt 里引用 ctx.stories）
+  const stories = privacy.longTermMemoryEnabled
+    ? storyService.listRecentForPrompt(userId, characterId, 3)
+    : [];
   const shortTerm = memoryService.buildShortTerm(userId, conversation);
   const relationship = relationshipService.ensureState(userId, character);
 
@@ -221,6 +227,7 @@ export async function* streamChat(
     userText: text,
     shortTerm,
     memories,
+    stories,
     emotion: {
       currentEmotion: aiEmotion.currentEmotion,
       intensity: aiEmotion.intensity,
@@ -424,6 +431,34 @@ async function runPostProcessing(input: PostInput): Promise<void> {
         items: saved.map((m) => ({ id: m.id, content: m.content, category: m.category })),
       });
     }
+
+    // 2b) 抽取「我们的故事」+ 首聊里程碑（增值能力，内部已 try/catch）
+    const savedStories = await storyService.extractStories({
+      userId,
+      character,
+      userMessageId: userMessage.id,
+      userText,
+      aiReply,
+      userMessageCount,
+      longTermEnabled,
+    });
+    storyService.ensureFirstChatStory(userId, character, userMessage.id);
+    if (savedStories.length) {
+      onEvent({
+        type: 'story',
+        action: 'added',
+        items: savedStories.map((s) => ({ id: s.id, title: s.title, type: s.type })),
+      });
+    }
+
+    // 2c) 未完待续：记录用户留下的未完话题（fire-and-forget，不阻塞回复）
+    void unfinishedTopicService.extractUnfinished({
+      userId,
+      character,
+      userMessageId: userMessage.id,
+      userText,
+      aiReply,
+    });
 
     // 3) 更新关系
     const prevStage = relationshipService.ensureState(userId, character).stage;

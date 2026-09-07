@@ -13,6 +13,8 @@ import { useNavigate } from 'react-router-dom';
 import { AppHeader } from '@/components/common/AppHeader';
 import { Avatar } from '@/components/common/Avatar';
 import { EmptyState } from '@/components/common/EmptyState';
+import { SmallTopicsSection } from '@/components/home/SmallTopicsSection';
+import { UnfinishedSection } from '@/components/home/UnfinishedSection';
 import { useAppState } from '@/hooks/useAppState';
 import { useProactive } from '@/hooks/useProactive';
 import { EMOTION_ANCHORS, STAGE_META } from '@shared/constants';
@@ -117,6 +119,9 @@ export function HomePage(): React.ReactElement {
               </div>
             </section>
 
+            {/* 今天聊什么（AI 小话题）：给不知道聊什么的用户一个入口 */}
+            <SmallTopicsSection />
+
             {/* AI 主动消息（未读） */}
             {inbox.length > 0 ? (
               <section className="rounded-3xl bg-[var(--xl-card)] p-4 shadow-[var(--xl-shadow)]">
@@ -155,6 +160,9 @@ export function HomePage(): React.ReactElement {
                 </div>
               </section>
             ) : null}
+
+            {/* 未完待续：用户之前留下没说完的话题 */}
+            <UnfinishedSection />
 
             {/* 角色管理 */}
             <section className="rounded-3xl bg-[var(--xl-card)] p-4 shadow-[var(--xl-shadow)]">

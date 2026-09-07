@@ -122,10 +122,10 @@ export function list(userId: string, options: ListStoriesOptions = {}): StoryLis
   return { items: rows.map(rowToStory), total: totalRow?.n ?? 0 };
 }
 
-/** 按 ID 取一条（带 userId 条件，天然隔离） */
+/** 按 ID 取一条（带 userId 条件，天然隔离；软删除后不可见） */
 export function getById(userId: string, storyId: string): Story | null {
   const row = db
-    .prepare('SELECT * FROM stories WHERE id = ? AND user_id = ?')
+    .prepare('SELECT * FROM stories WHERE id = ? AND user_id = ? AND deleted_at IS NULL')
     .get(storyId, userId) as StoryRow | undefined;
   return row ? rowToStory(row) : null;
 }

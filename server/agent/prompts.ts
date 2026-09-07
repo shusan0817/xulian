@@ -40,6 +40,7 @@ import {
   STRATEGY_META,
   USER_CHAT_MODES,
   CONVERSATION_STATE_META,
+  STORY_TYPES,
   type ConversationState,
 } from '../../shared/constants.js';
 import type { AICharacter, AiHabit } from '../../shared/types.js';
@@ -833,3 +834,54 @@ ${opts.newMessages.map((m) => `${m.role === 'user' ? '使用者' : 'AI'}：${m.c
 把上面的內容壓縮成一段 200 字以內的摘要，保留：重要事件、使用者的偏好與情緒變化、
 未完成的話題。用第三人稱客觀描述，不要加入評價。只輸出摘要文字。`;
 }
+
+/** 故事抽取（我们的故事 V2-2）：从对话里找出「你们之间发生的事」 */
+export function buildStoryExtractPrompt(opts: {
+  userText: string;
+  aiReply?: string;
+}): string {
+  return `你是「我們的故事件」抽取器。從對話中找出值得長期記住的、你們之間發生過的事。
+
+## 對話
+使用者：${opts.userText}
+${opts.aiReply ? `AI：${opts.aiReply}\n` : ''}
+
+## 抽取標準
+值得記成「故事」的：
+- first_chat：這是你們第一次聊天的起點（僅在這句明顯是開場時才標）
+- user_shared：使用者主動分享的重要經歷、心情、秘密、生活片段
+- shared_milestone：一起經歷的某個節點（例如「一起熬過某個難關」「某天突然聊到很晚」）
+- habit_learned：你學到了關於他的一個穩定習慣或偏好
+- special_interaction：某個特別的互動瞬間（例如他第一次叫你某個暱稱）
+- user_saved：他明確說「記住這個」的內容
+不值得：日常瑣事、一次性的隨口抱怨、沒有畫面的普通閒聊。
+絕對不要記錄：身分證號、銀行卡號、手機號、詳細住址、病歷。
+
+## 輸出
+只輸出 JSON：{"stories":[{"type":"<上述六選一>","title":"<一句話標題，20字內>","summary":"<發生了什麼，80字內，客觀記述>","importance":<0..1>}]}
+若沒有值得記成故事的內容，輸出 {"stories":[]}。`;
+}
+
+/** 未完待续抽取：判断用户这句是否留下了没说完的话题 */
+export function buildUnfinishedExtractPrompt(opts: {
+  userText: string;
+  aiReply?: string;
+}): string {
+  return `你是「未完待續」偵測器。判斷使用者這句話是否留下了一個「還沒聊完、之後可以再接」的話題。
+
+## 對話
+使用者：${opts.userText}
+${opts.aiReply ? `AI：${opts.aiReply}\n` : ''}
+
+## 判斷標準
+算「未完」的：
+- 使用者拋出一個問題但自己沒展開，或話說到一半（例如「我最近在糾結……」「其實有件事」）
+- 明確說「下次 / 改天 / 之後 / 晚點 / 有空再說」之類的延後語
+- 聊到某個話題但被帶開，顯然還想繼續（例如「這個之後再跟你細說」）
+不算「未完」的：普通閒聊、已經聊完的結論、純問候。
+
+## 輸出
+只輸出 JSON：{"items":[{"topic":"<未完話題的簡短標題，15字內>","resumeHint":"<AI 之後可以怎麼自然接上這個話題，一句話 60 字內>"}]}
+若沒有未完話題，輸出 {"items":[]}。`;
+}
+

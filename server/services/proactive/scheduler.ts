@@ -28,7 +28,7 @@ import * as conversationsRepo from '../../db/repositories/conversations.repo.js'
 import * as memoriesRepo from '../../db/repositories/memories.repo.js';
 import * as statesRepo from '../../db/repositories/states.repo.js';
 
-import { decide } from './decisionService.js';
+import { decide, type UnfinishedSignal } from './decisionService.js';
 import { generateProactiveMessage } from './generatorService.js';
 import { sendToUser } from '../notificationService.js';
 import { logger } from '../../logger.js';
@@ -176,7 +176,7 @@ async function processTarget(userId: string, characterId: string): Promise<void>
       reasonDetail: result.detail,
     });
 
-    await sendProactiveMessage(userId, character, task);
+    await sendProactiveMessage(userId, character, task, result.unfinishedTopic);
   } finally {
     proactiveRepo.adminFinishRunLock(characterId, windowKey, 'done');
   }
@@ -190,6 +190,7 @@ async function sendProactiveMessage(
   userId: string,
   character: Parameters<typeof generateProactiveMessage>[0]['character'],
   task: ProactiveTask,
+  unfinishedTopic: UnfinishedSignal | null,
 ): Promise<void> {
   const user = usersRepo.getById(userId);
   const now = new Date();
@@ -225,6 +226,7 @@ async function sendProactiveMessage(
       .filter((m) => m.isProactive && m.role === 'assistant')
       .map((m) => m.content),
     conversationState,
+    unfinishedTopic,
     now,
   });
 

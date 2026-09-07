@@ -48,6 +48,7 @@ export const TABS = [
   { key: 'home', label: '首頁', path: '/', icon: 'home' },
   { key: 'characters', label: '角色', path: '/characters', icon: 'users' },
   { key: 'memories', label: '記憶', path: '/memories', icon: 'book' },
+  { key: 'stories', label: '故事', path: '/stories', icon: 'story' },
   { key: 'learned', label: '了解', path: '/learned', icon: 'sparkles' },
   { key: 'settings', label: '我的', path: '/settings', icon: 'user' },
 ] as const;

@@ -14,6 +14,8 @@ export interface ChatComposerProps {
   disabled?: boolean;
   generating?: boolean;
   placeholder?: string;
+  /** 外部带入的初始文本（如从首页「今天聊什么 / 未完待续」点进来），变化时回填 */
+  initialValue?: string;
   onSend: (text: string) => void;
   onStop?: () => void;
 }
@@ -25,11 +27,17 @@ export function ChatComposer({
   disabled,
   generating,
   placeholder = '說點什麼…',
+  initialValue,
   onSend,
   onStop,
 }: ChatComposerProps): React.ReactElement {
-  const [value, setValue] = useState('');
+  const [value, setValue] = useState(initialValue ?? '');
   const ref = useRef<HTMLTextAreaElement>(null);
+
+  // 从外部带入的话题（initialValue）变化时回填输入框
+  useEffect(() => {
+    if (initialValue) setValue(initialValue);
+  }, [initialValue]);
 
   // 高度自适应
   useEffect(() => {

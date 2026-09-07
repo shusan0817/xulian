@@ -28,8 +28,15 @@ import type { ProactiveStatusResponse } from '../../types.js';
 import type { DecisionDetail } from '../../../shared/types.js';
 import * as proactiveRepo from '../../db/repositories/proactive.repo.js';
 import * as statesRepo from '../../db/repositories/states.repo.js';
+import * as unfinishedTopicService from '../unfinishedTopicService.js';
 import { dayKey, isWithinDnd } from '../../db/helpers.js';
 import { logger } from '../../logger.js';
+
+/** 未完待续信号：决策结果里带上「最值得接的未完话题」，供生成器引用 */
+export interface UnfinishedSignal {
+  topic: string;
+  resumeHint: string;
+}
 
 export interface DecisionInput {
   userId: string;
@@ -50,6 +57,8 @@ export interface DecisionResult {
   reasonText: string;
   factors: Record<string, { raw: number; weight: number; weighted: number }>;
   detail: DecisionDetail;
+  /** 本次决策命中的未完话题（若有），供生成器自然接续 */
+  unfinishedTopic: UnfinishedSignal | null;
   /** delay 时给出建议的重新评估时间 */
   nextCheckAt: string | null;
 }
@@ -174,10 +183,17 @@ function scoreFactors(input: DecisionInput, ctx: VetoContext) {
   record('personaProactivity', proactivity);
   notes.push(`人格主動性 ${proactivity.toFixed(2)}`);
 
-  // 4) 话题延续：设置允许时，最近聊的话题有"未完待续"的钩子
+  // 4) 话题延续：读取真实的「未完待续」——用户留下的没说完的话题，主动接续价值最高
   let topicContinuation = 0.3;
-  if (settings.allowTopicContinuation && ctx.minutesSinceLastChat < 48 * 60) {
-    topicContinuation = 0.75; // 48 小时内的话题还算"热的"
+  let topUnfinished: UnfinishedSignal | null = null;
+  const openTopics = unfinishedTopicService.listOpen(input.userId, character.id, 3);
+  if (openTopics.length > 0 && ctx.minutesSinceLastChat >= 0 && ctx.minutesSinceLastChat < 48 * 60) {
+    // 48 小时内的未完话题还算"热的"，且越多的未完话题说明越多可以接的线头
+    topicContinuation = Math.min(0.95, 0.7 + openTopics.length * 0.08);
+    topUnfinished = { topic: openTopics[0].topic, resumeHint: openTopics[0].resumeHint };
+    notes.push(`有 ${openTopics.length} 個未完話題可接（例如：${openTopics[0].topic}）`);
+  } else if (settings.allowTopicContinuation && ctx.minutesSinceLastChat < 48 * 60) {
+    topicContinuation = 0.55;
     notes.push('最近聊過的話題還有延續性');
   } else {
     notes.push('沒有明顯的話題延續點');
@@ -211,7 +227,7 @@ function scoreFactors(input: DecisionInput, ctx: VetoContext) {
   record('aiEmotion', aiDrive);
 
   const score = Object.values(factors).reduce((sum, f) => sum + f.weighted, 0);
-  return { factors, score, notes };
+  return { factors, score, notes, unfinishedTopic: topUnfinished };
 }
 
 // ============================================================
@@ -284,12 +300,13 @@ export function decide(input: DecisionInput): DecisionResult {
       reasonText: veto.text,
       factors: {},
       detail: { factors: {}, vetoHit: veto.code, notes: [] },
+      unfinishedTopic: null,
       nextCheckAt: null,
     };
   }
 
   // ---- 第二段：七因子打分 ----
-  const { factors, score, notes } = scoreFactors(input, vetoCtx);
+  const { factors, score, notes, unfinishedTopic } = scoreFactors(input, vetoCtx);
 
   const detail: DecisionDetail = { factors, vetoHit: null, notes };
 
@@ -301,6 +318,7 @@ export function decide(input: DecisionInput): DecisionResult {
       reasonText: `綜合評估後覺得現在不太適合打擾（${score.toFixed(2)}）`,
       factors,
       detail,
+      unfinishedTopic,
       nextCheckAt: null,
     };
   }
@@ -319,6 +337,7 @@ export function decide(input: DecisionInput): DecisionResult {
       reasonText: `再等一下看看（${delayMinutes} 分鐘後重新評估）`,
       factors,
       detail,
+      unfinishedTopic,
       nextCheckAt: new Date(now.getTime() + delayMinutes * 60000).toISOString(),
     };
   }
@@ -330,6 +349,7 @@ export function decide(input: DecisionInput): DecisionResult {
     reasonText: '覺得現在適合主動說點什麼',
     factors,
     detail,
+    unfinishedTopic,
     nextCheckAt: null,
   };
 }

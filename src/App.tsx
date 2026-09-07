@@ -26,6 +26,7 @@ import { CharacterListPage } from '@/pages/CharacterListPage';
 import { CharacterEditPage } from '@/pages/CharacterEditPage';
 import { LoginPage } from '@/pages/LoginPage';
 import { MemoryPage } from '@/pages/MemoryPage';
+import { StoryPage } from '@/pages/StoryPage';
 import { LearnedPage } from '@/pages/LearnedPage';
 import { RegisterPage } from '@/pages/RegisterPage';
 import { SettingsPage } from '@/pages/SettingsPage';
@@ -81,6 +82,7 @@ export default function App(): React.ReactElement {
           <Route path="/characters/new" element={<CharacterEditPage />} />
           <Route path="/characters/:id" element={<CharacterEditPage />} />
           <Route path="/memories" element={<MemoryPage />} />
+          <Route path="/stories" element={<StoryPage />} />
           <Route path="/learned" element={<LearnedPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           {/* 兜底：未知路径回首页，避免白屏 */}

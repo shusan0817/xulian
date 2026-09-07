@@ -325,6 +325,21 @@ CREATE INDEX IF NOT EXISTS idx_stories_time  ON stories(user_id, character_id, d
 CREATE INDEX IF NOT EXISTS idx_stories_type  ON stories(user_id, character_id, type, happened_at DESC);
 CREATE INDEX IF NOT EXISTS idx_stories_rank  ON stories(user_id, deleted_at, pinned DESC, importance DESC);
 
+-- 16b. 未完待续（P0：话题延续 + 主动跟进）--------------------
+CREATE TABLE IF NOT EXISTS unfinished_topics (
+  id                 TEXT PRIMARY KEY,
+  user_id            TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  character_id       TEXT NOT NULL REFERENCES ai_characters(id) ON DELETE CASCADE,
+  topic              TEXT NOT NULL,                -- 用户留下的未完话题（简短标题）
+  resume_hint        TEXT NOT NULL DEFAULT '',     -- AI 生成的「怎么接话」建议（≤120 字）
+  source_message_ids TEXT NOT NULL DEFAULT '[]',   -- JSON string[]，溯源
+  status             TEXT NOT NULL DEFAULT 'open', -- open | resolved | archived
+  last_touched_at    TEXT NOT NULL,                -- 最近一次触及该话题的时间
+  created_at         TEXT NOT NULL,
+  updated_at         TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_unfinished_open ON unfinished_topics(user_id, character_id, status, updated_at DESC);
+
 -- 17. AI 了解的你（V2-3）-------------------------------------
 CREATE TABLE IF NOT EXISTS user_insights (
   id                TEXT PRIMARY KEY,
