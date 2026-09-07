@@ -361,6 +361,12 @@ export const PROACTIVE_CONFIG = {
   idleFullScoreHours: 24,
   /** 任务过期时间（小时）：scheduled 任务超过该时间未完成则 expired */
   taskExpireHours: 6,
+  /**
+   * §10 主动消息冷却：AI 主动发出后，若用户「未回复」，必须把冷却拉长到 12~24h，
+   * 避免连续骚扰。这里取 16h（落在 §10 区间内）。一旦用户回复，冷却恢复为
+   * 设置里的 minIntervalHours（默认 4h）。详见 decisionService V5_TOO_SOON。
+   */
+  unrepliedCooldownHours: 16,
 } as const;
 
 // ============================================================

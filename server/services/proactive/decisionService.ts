@@ -63,6 +63,8 @@ interface VetoContext {
   settings: ProactiveSettings;
   minutesSinceLastChat: number;
   minutesSinceLastProactive: number;
+  /** 用户是否已回复「上一则主动消息」：false → 拉长冷却（§10） */
+  repliedSinceLastProactive: boolean;
   lastSeenMinutesAgo: number;
   todaySent: number;
   hasPendingTask: boolean;
@@ -87,11 +89,19 @@ function evaluateVetoes(ctx: VetoContext): { code: string; text: string } | null
     return { code: 'V4_DAILY_LIMIT', text: `今日主動消息已達上限（${settings.dailyLimit} 則）` };
   }
 
-  if (
-    ctx.minutesSinceLastProactive >= 0 &&
-    ctx.minutesSinceLastProactive < settings.minIntervalHours * 60
-  ) {
-    return { code: 'V5_TOO_SOON', text: '距離上一則主動消息太近' };
+  // V5 冷却（§10）：用户「已回复」→ 用设置的最小间隔（默认 4h）；
+  // 用户「未回复」→ 拉长到 unrepliedCooldownHours（16h，落在 12~24h 区间内），
+  // 避免主动消息发出后对方没理又马上再发、造成骚扰。
+  const cooldownMinutes = ctx.repliedSinceLastProactive
+    ? settings.minIntervalHours * 60
+    : PROACTIVE_CONFIG.unrepliedCooldownHours * 60;
+  if (ctx.minutesSinceLastProactive >= 0 && ctx.minutesSinceLastProactive < cooldownMinutes) {
+    return {
+      code: 'V5_TOO_SOON',
+      text: ctx.repliedSinceLastProactive
+        ? '距離上一則主動消息太近'
+        : '上一則主動消息你還沒回，先不打擾（冷卻中）',
+    };
   }
 
   if (ctx.minutesSinceLastChat >= 0 && ctx.minutesSinceLastChat < PROACTIVE_CONFIG.justTalkedMinutes) {
@@ -234,6 +244,18 @@ export function decide(input: DecisionInput): DecisionResult {
     ? (now.getTime() - new Date(lastSent.createdAt).getTime()) / 60000
     : -1;
 
+  // §10：判断用户是否已回复「上一则主动消息」。
+  // relationship.lastInteractionAt 只在用户发消息（且 AI 回完）时更新，
+  // AI 主动发消息不会动它；因此拿它和上一则主动发送时间比，>= 即视为已回复。
+  const lastProactiveAt = lastSent?.createdAt ? new Date(lastSent.createdAt).getTime() : null;
+  const lastUserInteractionAt = relationship?.lastInteractionAt
+    ? new Date(relationship.lastInteractionAt).getTime()
+    : null;
+  const repliedSinceLastProactive =
+    lastProactiveAt !== null &&
+    lastUserInteractionAt !== null &&
+    lastUserInteractionAt >= lastProactiveAt;
+
   const lastSeenMinutesAgo = input.lastSeenAt
     ? (now.getTime() - new Date(input.lastSeenAt).getTime()) / 60000
     : -1;
@@ -245,6 +267,7 @@ export function decide(input: DecisionInput): DecisionResult {
     settings,
     minutesSinceLastChat,
     minutesSinceLastProactive,
+    repliedSinceLastProactive,
     lastSeenMinutesAgo,
     todaySent,
     hasPendingTask,
