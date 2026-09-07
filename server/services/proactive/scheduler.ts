@@ -284,10 +284,16 @@ async function sendProactiveMessage(
   proactiveRepo.bumpDailyCount(userId, character.id, dayKey(now, user?.timezone));
 
   // 推送（失败不影响消息已入库——App 内收件箱是保底触达）
+  // 前端部署在 GitHub Pages 子路径 /xulian/ 且已改用 HashRouter，
+  // 深链必须是 <前端基址>/#/chat?c=..&m=..，否则直接打开会踩 GitHub Pages 默认 404 白屏。
+  const webBase =
+    env.clientOrigin && !/localhost|127\.0\.0\.1/.test(env.clientOrigin)
+      ? env.clientOrigin
+      : 'https://shusan0817.github.io/xulian';
   const pushResult = await sendToUser(userId, {
     title: character.name,
     body: generated.text,
-    url: `/chat?c=${character.id}&m=${message.id}`,
+    url: `${webBase}/#/chat?c=${character.id}&m=${message.id}`,
     tag: `xulian-${message.id}`,
   });
 

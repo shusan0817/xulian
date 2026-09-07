@@ -27,7 +27,7 @@ const character = charactersRepo.create(userId, {
   name: '验证角色',
   proactivityLevel: 0.5,
   initialStage: 'familiar',
-  initialEmotion: 'neutral',
+  initialEmotion: 'calm',
   proactiveSettings: {
     enabled: true,
     dailyLimit: 99,
@@ -36,7 +36,6 @@ const character = charactersRepo.create(userId, {
     dndEnd: '03:00',
     minIntervalHours: 4,
     allowTopicContinuation: true,
-    proactivityLevel: 0.5,
   },
 }) as AICharacter;
 

@@ -1,6 +1,6 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { BrowserRouter } from 'react-router-dom';
+import { HashRouter } from 'react-router-dom';
 
 import App from './App';
 import { APP_CONFIG } from './config';
@@ -27,9 +27,15 @@ if (!container) {
 
 ReactDOM.createRoot(container).render(
   <React.StrictMode>
-    <BrowserRouter basename="/xulian/">
+    {/*
+      改用 HashRouter（原 BrowserRouter 在 GitHub Pages 项目页上，
+      深链接 /xulian/chat 等会踩平台默认 404 白屏，因为 GitHub Pages 不支持服务端 rewrite）。
+      HashRouter 的 URL 形如 /xulian/#/chat，hash 不发服务器请求，
+      GitHub Pages 永远只服务 /xulian/（index.html），深链接永不 404。
+    */}
+    <HashRouter>
       <App />
-    </BrowserRouter>
+    </HashRouter>
   </React.StrictMode>,
 );
 
