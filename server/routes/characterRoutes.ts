@@ -9,6 +9,8 @@ import { Router } from 'express';
 import { ErrorCode } from '../../shared/errors.js';
 import { ApiError, asyncHandler } from '../errors.js';
 import { ok, requireUserId, resolveUser } from '../http.js';
+import { isAiConfigured } from '../env.js';
+import { completeText } from '../agent/sdkClient.js';
 import * as personaService from '../services/personaService.js';
 import * as charactersRepo from '../db/repositories/characters.repo.js';
 import * as growthService from '../services/growthService.js';
@@ -118,3 +120,85 @@ characterRoutes.post(
     ok(res, { character });
   }),
 );
+
+/**
+ * 纪念日里程碑的 AI 专属问候（需求：里程碑问候改为 AI 真实生成）。
+ *
+ * 前端在命中里程碑（相识 100 天 / 週年 / 自定义生日等）当天，调用本接口拿到一句
+ * 「以角色口吻、针对今天这个纪念日」的问候。若后端未配置 AI、或生成失败，
+ * 一律回传 `{ greeting: null }`，让前端回落到本地预写的温暖文案（绝不让彩蛋卡住）。
+ */
+characterRoutes.post(
+  '/:characterId/anniversary-greeting',
+  asyncHandler(async (req, res) => {
+    const userId = requireUserId(req);
+    const character = personaService.getCharacter(userId, req.params.characterId);
+    if (!character) throw new ApiError(ErrorCode.NOT_FOUND, '找不到這個角色');
+
+    // 未配置 AI：直接回落，不浪费一次调用与等待
+    if (!isAiConfigured()) {
+      ok(res, { greeting: null });
+      return;
+    }
+
+    const body = (req.body ?? {}) as { type?: unknown; label?: unknown; days?: unknown };
+    const type = body.type === 'custom' ? 'custom' : 'meet';
+    const label = typeof body.label === 'string' && body.label.trim() ? body.label.trim() : '今天';
+    const days = typeof body.days === 'number' && Number.isFinite(body.days) ? body.days : 0;
+
+    try {
+      const result = await completeText({
+        systemPrompt: buildAnniversarySystemPrompt(character),
+        prompt: buildAnniversaryUserPrompt(type, label, days),
+        temperatureHint: 'creative',
+        label: 'anniversary-greeting',
+      });
+      const greeting = (result.text || '').trim().slice(0, 200);
+      ok(res, { greeting: greeting || null });
+    } catch (err) {
+      logger.warn('[Character] 紀念日 AI 問候生成失敗，前端將走預寫文案', {
+        characterId: character.id,
+        message: err instanceof Error ? err.message : String(err),
+      });
+      ok(res, { greeting: null });
+    }
+  }),
+);
+
+/** 把角色人格拼成系统提示词，让 AI 用 TA 的口吻说话 */
+function buildAnniversarySystemPrompt(character: {
+  name: string;
+  personality?: string;
+  speakingStyle?: string;
+  userNickname?: string;
+}): string {
+  const lines = [
+    `你是 AI 陪伴角色「${character.name}」，請全程用「${character.name}」的第一人稱視角說話。`,
+    `性格：${character.personality || '溫柔、體貼、會認真聽人說話'}`,
+  ];
+  if (character.speakingStyle) lines.push(`說話風格：${character.speakingStyle}`);
+  if (character.userNickname) lines.push(`你平時稱呼對方為「${character.userNickname}」。`);
+  lines.push(
+    '',
+    '任務：今天是你们之间的一个纪念日，请对使用者说一句温暖、真诚、像真人朋友会说的祝福或问候。',
+    '要求：',
+    '- 第一人稱，語氣貼合上面的性格與說話風格；',
+    '- 只輸出這一句話，不要解釋、不要引號、不要 markdown；',
+    '- 長度控制在 1~2 句（不超過 60 字）；',
+    '- 可以適度帶一點節日氣氛，但保持自然、不誇張、不油膩；',
+    '- 不要用英文、不要出現 "milestone"、"anniversary" 等內部術語；',
+    '- 自然地把今天這個日子說出來（例如「今天是我們相識 100 天」），不要照抄指令裡的標籤字。',
+  );
+  return lines.join('\n');
+}
+
+/** 把里程碑信息拼成用户提示词 */
+function buildAnniversaryUserPrompt(
+  type: 'meet' | 'custom',
+  label: string,
+  days: number,
+): string {
+  return type === 'meet'
+    ? `今天是你们相识满 ${days} 天（也就是「${label}」）。请用角色口吻，对使用者说一句温暖的问候，自然地提到这个日子。`
+    : `今天是使用者设定的纪念日「${label}」。请用角色口吻，对使用者说一句温暖的问候。`;
+}

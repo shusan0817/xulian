@@ -7,7 +7,7 @@
  *  - 「今天的狀態」                  → 由最近互动时间 + 今日主动消息数派生，不编造
  */
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { AppHeader } from '@/components/common/AppHeader';
@@ -25,6 +25,7 @@ import { useAppState } from '@/hooks/useAppState';
 import { useAnniversary } from '@/hooks/useAnniversary';
 import { useDailyEvent } from '@/hooks/useDailyEvent';
 import { useProactive } from '@/hooks/useProactive';
+import { apiPost } from '@/api/client';
 import { EMOTION_ANCHORS, STAGE_META } from '@shared/constants';
 import { formatRelativeTime } from '@/utils/time';
 
@@ -49,6 +50,25 @@ export function HomePage(): React.ReactElement {
     sessionStorage.setItem('xulian.celebrated.v1', todayKey);
     setCelebrated(true);
   };
+
+  // 命中里程碑时，向服务端请求「以 TA 口吻、针对今天纪念日」的 AI 专属问候；
+  // 失败 / 未配置则回落到本地预写文案（aiGreeting 保持 null）。
+  const [aiGreeting, setAiGreeting] = useState<string | null>(null);
+  useEffect(() => {
+    if (!showCelebrate || !milestone || !character) return;
+    const controller = new AbortController();
+    setAiGreeting(null);
+    apiPost<{ greeting: string | null }>(
+      `/api/characters/${character.id}/anniversary-greeting`,
+      { type: milestone.kind, label: milestone.label, days: milestone.days },
+      { signal: controller.signal, silent: true },
+    )
+      .then((res) => {
+        if (res?.greeting) setAiGreeting(res.greeting);
+      })
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, [showCelebrate, milestone, character]);
 
   // 进站彩蛋：随机日常事件弹窗（25% 触发，需已有 AI 角色）
   const { event: dailyEvent, dismiss: dismissDaily } = useDailyEvent(Boolean(character));
@@ -85,7 +105,7 @@ export function HomePage(): React.ReactElement {
             <div className="flex items-center gap-2 text-[13px] font-semibold">
               🎉 今天是 {milestone!.label}
             </div>
-            <p className="mt-2 text-[14px] leading-relaxed">{milestone!.greeting}</p>
+            <p className="mt-2 text-[14px] leading-relaxed">{aiGreeting ?? milestone!.greeting}</p>
             <button
               onClick={() => {
                 dismissCelebrate();

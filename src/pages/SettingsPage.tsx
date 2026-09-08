@@ -18,6 +18,7 @@ import { useAppState } from '@/hooks/useAppState';
 import { useAuth } from '@/hooks/useAuth';
 import { useProactive } from '@/hooks/useProactive';
 import { usePush } from '@/hooks/usePush';
+import { useUserPrefs } from '@/hooks/useUserPrefs';
 import {
   apiDelete,
   apiGet,
@@ -46,6 +47,7 @@ export function SettingsPage(): React.ReactElement {
   const characterId = defaultCharacterId;
   const { status, scheduler, history, refresh: refreshProactive } = useProactive(characterId);
   const push = usePush();
+  const { dailyEventChance, setDailyEventChance } = useUserPrefs();
 
   const [character, setCharacter] = useState<AICharacter | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<'none' | 'messages' | 'all'>('none');
@@ -276,6 +278,40 @@ export function SettingsPage(): React.ReactElement {
           ) : null}
         </section>
 
+        {/* ============ 小彩蛋（进站日常事件频率，纯客户端设置） ============ */}
+        <section>
+          <h3 className={sectionTitle}>小彩蛋</h3>
+          <div className={`${cardClass} divide-y divide-[var(--xl-mist)]`}>
+            <Row
+              title="日常小事件頻率"
+              desc="每次打開 App，TA 分享一首歌、一張便簽等小驚喜的機率"
+              control={
+                <NumberPicker
+                  value={Math.round(dailyEventChance * 100)}
+                  min={0}
+                  max={100}
+                  step={5}
+                  disabled={busy}
+                  onChange={(v) => setDailyEventChance(v / 100)}
+                  suffix="%"
+                />
+              }
+            />
+            <Row
+              title="關閉彩蛋"
+              desc="把頻率調到 0%，就不會再自動跳出小事件"
+              control={
+                <Switch
+                  checked={dailyEventChance <= 0}
+                  disabled={busy}
+                  onChange={(v) => setDailyEventChance(v ? 0 : 0.25)}
+                  label="關閉彩蛋"
+                />
+              }
+            />
+          </div>
+        </section>
+
         {/* ============ 隐私 ============ */}
         <section>
           <h3 className={sectionTitle}>隱私與資料</h3>
@@ -499,28 +535,36 @@ function NumberPicker({
   value,
   min,
   max,
+  step = 1,
+  suffix,
   disabled,
   onChange,
 }: {
   value: number;
   min: number;
   max: number;
+  step?: number;
+  suffix?: string;
   disabled?: boolean;
   onChange: (value: number) => void;
 }): React.ReactElement {
+  const clamp = (n: number): number => Math.min(max, Math.max(min, n));
   return (
     <div className="flex items-center gap-1">
       <button
         disabled={disabled || value <= min}
-        onClick={() => onChange(Math.max(min, value - 1))}
+        onClick={() => onChange(clamp(value - step))}
         className="h-7 w-7 rounded-full bg-[var(--xl-mist)] text-[15px] text-[var(--xl-ink)] disabled:opacity-30"
       >
         −
       </button>
-      <span className="w-6 text-center text-[14px] text-[var(--xl-ink)]">{value}</span>
+      <span className="w-10 text-center text-[14px] text-[var(--xl-ink)]">
+        {value}
+        {suffix ?? ''}
+      </span>
       <button
         disabled={disabled || value >= max}
-        onClick={() => onChange(Math.min(max, value + 1))}
+        onClick={() => onChange(clamp(value + step))}
         className="h-7 w-7 rounded-full bg-[var(--xl-mist)] text-[15px] text-[var(--xl-ink)] disabled:opacity-30"
       >
         +

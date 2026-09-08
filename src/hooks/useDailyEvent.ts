@@ -11,9 +11,9 @@
 import { useEffect, useState } from 'react';
 
 import { DAILY_EVENTS, type DailyEvent } from '@/lib/dailyEvents';
+import { useUserPrefs } from '@/hooks/useUserPrefs';
 
 const SESSION_KEY = 'xulian.dailyEvent.v1';
-const CHANCE = 0.25;
 
 export interface UseDailyEventResult {
   event: DailyEvent | null;
@@ -22,17 +22,19 @@ export interface UseDailyEventResult {
 
 export function useDailyEvent(enabled: boolean): UseDailyEventResult {
   const [event, setEvent] = useState<DailyEvent | null>(null);
+  // 彩蛋触发概率可在「设置」里调整（默认 25%）
+  const { dailyEventChance } = useUserPrefs();
 
   useEffect(() => {
     if (!enabled) return;
     if (sessionStorage.getItem(SESSION_KEY)) return;
     // 标记已抽，避免本次会话重复
     sessionStorage.setItem(SESSION_KEY, '1');
-    if (Math.random() < CHANCE) {
+    if (Math.random() < dailyEventChance) {
       const pick = DAILY_EVENTS[Math.floor(Math.random() * DAILY_EVENTS.length)];
       setEvent(pick);
     }
-  }, [enabled]);
+  }, [enabled, dailyEventChance]);
 
   const dismiss = (): void => setEvent(null);
 
