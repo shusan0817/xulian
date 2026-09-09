@@ -14,27 +14,52 @@
  *   /settings             设置
  */
 
+import { lazy, Suspense } from 'react';
 import { Route, Routes, useLocation } from 'react-router-dom';
 
 import { ProtectedRoute } from '@/components/common/ProtectedRoute';
 import { TabBar } from '@/components/common/TabBar';
 import { ToastHost } from '@/components/common/Toast';
-import { AccountPage } from '@/pages/AccountPage';
+import { PageSkeleton } from '@/components/common/PageSkeleton';
 import { HomePage } from '@/pages/HomePage';
-import { ChatPage } from '@/pages/ChatPage';
-import { CharacterListPage } from '@/pages/CharacterListPage';
-import { CharacterEditPage } from '@/pages/CharacterEditPage';
-import { CharacterDetailPage } from '@/pages/CharacterDetailPage';
-import { UnfinishedPage } from '@/pages/UnfinishedPage';
 import { LoginPage } from '@/pages/LoginPage';
-import { MemoryPage } from '@/pages/MemoryPage';
-import { StoryPage } from '@/pages/StoryPage';
-import { LearnedPage } from '@/pages/LearnedPage';
-import { GrowthPage } from '@/pages/GrowthPage';
-import { MemoryLabPage } from '@/pages/MemoryLabPage';
 import { RegisterPage } from '@/pages/RegisterPage';
-import { SettingsPage } from '@/pages/SettingsPage';
 import { useUserId } from '@/hooks/useUserId';
+
+// 懒加载：首屏只打包 Home / Login / Register，其余页面（聊天、设置、记忆实验室…）
+// 拆成独立 chunk，进入对应路由时才下载，显著减小首屏 JS 体积、加快首屏可交互。
+const AccountPage = lazy(() =>
+  import('@/pages/AccountPage').then((m) => ({ default: m.AccountPage })),
+);
+const ChatPage = lazy(() => import('@/pages/ChatPage').then((m) => ({ default: m.ChatPage })));
+const CharacterListPage = lazy(() =>
+  import('@/pages/CharacterListPage').then((m) => ({ default: m.CharacterListPage })),
+);
+const CharacterEditPage = lazy(() =>
+  import('@/pages/CharacterEditPage').then((m) => ({ default: m.CharacterEditPage })),
+);
+const CharacterDetailPage = lazy(() =>
+  import('@/pages/CharacterDetailPage').then((m) => ({ default: m.CharacterDetailPage })),
+);
+const UnfinishedPage = lazy(() =>
+  import('@/pages/UnfinishedPage').then((m) => ({ default: m.UnfinishedPage })),
+);
+const MemoryPage = lazy(() =>
+  import('@/pages/MemoryPage').then((m) => ({ default: m.MemoryPage })),
+);
+const StoryPage = lazy(() => import('@/pages/StoryPage').then((m) => ({ default: m.StoryPage })));
+const LearnedPage = lazy(() =>
+  import('@/pages/LearnedPage').then((m) => ({ default: m.LearnedPage })),
+);
+const GrowthPage = lazy(() =>
+  import('@/pages/GrowthPage').then((m) => ({ default: m.GrowthPage })),
+);
+const MemoryLabPage = lazy(() =>
+  import('@/pages/MemoryLabPage').then((m) => ({ default: m.MemoryLabPage })),
+);
+const SettingsPage = lazy(() =>
+  import('@/pages/SettingsPage').then((m) => ({ default: m.SettingsPage })),
+);
 
 /**
  * 这些路由是「沉浸式」页面：全屏显示，不显示底部导航。
@@ -58,51 +83,53 @@ export default function App(): React.ReactElement {
   return (
     <div className="xl-phone">
       <div className="flex min-h-0 flex-1 flex-col">
-        <Routes>
-          {/* 认证页：公开，不需要登录 */}
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/register" element={<RegisterPage />} />
+        <Suspense fallback={<PageSkeleton />}>
+          <Routes>
+            {/* 认证页：公开，不需要登录 */}
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/register" element={<RegisterPage />} />
 
-          {/* 主页与账号页需要登录（ALLOW_ANONYMOUS=1 时守卫会放行匿名用户） */}
-          <Route
-            path="/"
-            element={
-              <ProtectedRoute>
-                <HomePage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/account"
-            element={
-              <ProtectedRoute>
-                <AccountPage />
-              </ProtectedRoute>
-            }
-          />
+            {/* 主页与账号页需要登录（ALLOW_ANONYMOUS=1 时守卫会放行匿名用户） */}
+            <Route
+              path="/"
+              element={
+                <ProtectedRoute>
+                  <HomePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/account"
+              element={
+                <ProtectedRoute>
+                  <AccountPage />
+                </ProtectedRoute>
+              }
+            />
 
-          <Route path="/chat" element={<ChatPage />} />
-          <Route path="/characters" element={<CharacterListPage />} />
-          <Route path="/characters/new" element={<CharacterEditPage />} />
-          <Route path="/characters/:id" element={<CharacterEditPage />} />
-          <Route path="/characters/:id/detail" element={<CharacterDetailPage />} />
-          <Route path="/unfinished" element={<UnfinishedPage />} />
-          <Route path="/memories" element={<MemoryPage />} />
-          <Route path="/stories" element={<StoryPage />} />
-          <Route path="/learned" element={<LearnedPage />} />
-          <Route path="/growth" element={<GrowthPage />} />
-          <Route path="/memory-lab" element={<MemoryLabPage />} />
-          <Route path="/settings" element={<SettingsPage />} />
-          {/* 兜底：未知路径回首页，避免白屏 */}
-          <Route
-            path="*"
-            element={
-              <ProtectedRoute>
-                <HomePage />
-              </ProtectedRoute>
-            }
-          />
-        </Routes>
+            <Route path="/chat" element={<ChatPage />} />
+            <Route path="/characters" element={<CharacterListPage />} />
+            <Route path="/characters/new" element={<CharacterEditPage />} />
+            <Route path="/characters/:id" element={<CharacterEditPage />} />
+            <Route path="/characters/:id/detail" element={<CharacterDetailPage />} />
+            <Route path="/unfinished" element={<UnfinishedPage />} />
+            <Route path="/memories" element={<MemoryPage />} />
+            <Route path="/stories" element={<StoryPage />} />
+            <Route path="/learned" element={<LearnedPage />} />
+            <Route path="/growth" element={<GrowthPage />} />
+            <Route path="/memory-lab" element={<MemoryLabPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
+            {/* 兜底：未知路径回首页，避免白屏 */}
+            <Route
+              path="*"
+              element={
+                <ProtectedRoute>
+                  <HomePage />
+                </ProtectedRoute>
+              }
+            />
+          </Routes>
+        </Suspense>
       </div>
 
       {showTabBar ? <TabBar /> : null}

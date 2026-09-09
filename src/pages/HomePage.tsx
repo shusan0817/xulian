@@ -24,7 +24,7 @@ import { DailyEventModal } from '@/components/DailyEventModal';
 import { useAppState } from '@/hooks/useAppState';
 import { useAnniversary } from '@/hooks/useAnniversary';
 import { useDailyEvent } from '@/hooks/useDailyEvent';
-import { useProactive } from '@/hooks/useProactive';
+import { useProactiveInbox } from '@/hooks/useProactiveInbox';
 import { apiPost } from '@/api/client';
 import { EMOTION_ANCHORS, STAGE_META } from '@shared/constants';
 import { formatRelativeTime } from '@/utils/time';
@@ -32,7 +32,7 @@ import { formatRelativeTime } from '@/utils/time';
 export function HomePage(): React.ReactElement {
   const navigate = useNavigate();
   const { characters, defaultCharacterId, loading, error } = useAppState();
-  const { inbox, ack } = useProactive(defaultCharacterId);
+  const { inbox, ack } = useProactiveInbox();
 
   const character = useMemo(
     () => characters.find((c) => c.id === defaultCharacterId) ?? characters[0] ?? null,
@@ -118,9 +118,9 @@ export function HomePage(): React.ReactElement {
           </section>
         ) : null}
 
-        {loading ? (
-          <div className="py-16 text-center text-[13px] text-[var(--xl-sub)]">載入中…</div>
-        ) : error ? (
+        {loading && !character ? (
+          <HomeSkeleton />
+        ) : error && !character ? (
           <EmptyState icon="⚠️" title="載入失敗" description={error} />
         ) : !character ? (
           <EmptyState
@@ -284,6 +284,18 @@ export function HomePage(): React.ReactElement {
         />
       ) : null}
     </>
+  );
+}
+
+/** 首屏数据未就绪（且无缓存）时的骨架占位：保持卡片结构，纯 CSS 脉冲 */
+function HomeSkeleton(): React.ReactElement {
+  return (
+    <div className="space-y-3">
+      <div className="h-24 animate-pulse rounded-3xl bg-[var(--xl-card)] shadow-[var(--xl-shadow)]" />
+      <div className="h-20 animate-pulse rounded-3xl bg-[var(--xl-card)] shadow-[var(--xl-shadow)]" />
+      <div className="h-20 animate-pulse rounded-3xl bg-[var(--xl-card)] shadow-[var(--xl-shadow)]" />
+      <div className="h-20 animate-pulse rounded-3xl bg-[var(--xl-card)] shadow-[var(--xl-shadow)]" />
+    </div>
   );
 }
 

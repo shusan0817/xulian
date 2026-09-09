@@ -10,7 +10,7 @@ import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { useAppState } from '@/hooks/useAppState';
-import { useMemoryLab } from '@/hooks/useMemoryLab';
+import { useRecentMemories } from '@/hooks/useRecentMemories';
 import { formatRelativeTime } from '@/utils/time';
 
 export function RecentMemoriesSection(): React.ReactElement | null {
@@ -21,14 +21,14 @@ export function RecentMemoriesSection(): React.ReactElement | null {
     [characters, defaultCharacterId],
   );
 
-  const { data, loading } = useMemoryLab(character?.id ?? null);
+  const { memories, loading } = useRecentMemories(character?.id ?? null, 10);
 
   if (!character) return null;
 
-  const memories = data.memories.slice(0, 3);
+  const recent = memories.slice(0, 3);
 
   // 首次加載且尚無內容：骨架占位
-  if (loading && memories.length === 0) {
+  if (loading && recent.length === 0) {
     return (
       <section className="rounded-3xl bg-[var(--xl-card)] p-4 shadow-[var(--xl-shadow)]">
         <div className="mb-2 flex items-center gap-2">
@@ -44,7 +44,7 @@ export function RecentMemoriesSection(): React.ReactElement | null {
   }
 
   // 沒有記憶：不渲染本區塊（避免堆砌空卡片）
-  if (memories.length === 0) return null;
+  if (recent.length === 0) return null;
 
   return (
     <section className="rounded-3xl bg-[var(--xl-card)] p-4 shadow-[var(--xl-shadow)]">
@@ -58,7 +58,7 @@ export function RecentMemoriesSection(): React.ReactElement | null {
         </button>
       </div>
       <div className="space-y-2">
-        {memories.map((m) => (
+        {recent.map((m) => (
           <div key={m.id} className="rounded-2xl bg-[var(--xl-mist)]/60 px-3 py-2.5">
             <p className="line-clamp-2 text-[13px] leading-relaxed text-[var(--xl-ink)]">{m.content}</p>
             <p className="mt-1 text-[10px] text-[var(--xl-sub)]">

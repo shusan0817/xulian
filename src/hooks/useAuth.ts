@@ -121,6 +121,11 @@ function getSnapshot(): AuthSnapshot {
   return snapshot;
 }
 
+/** 读取当前认证快照（供其它模块级 store 在不经过 hook 时读取最新状态） */
+export function getAuthSnapshot(): AuthSnapshot {
+  return snapshot;
+}
+
 // ============================================================
 // 登录 / 注册 / 登出
 // ============================================================

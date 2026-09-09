@@ -1,119 +1,174 @@
 /**
- * 用户标识 Hook（V2 · T02 改造）
+ * 用户标识 + Bootstrap 单例 store（性能优化：全应用只 bootstrap 一次、缓存优先）
  *
- * 与 V1 的差别：现在**先等 `useAuth` 把登录态问清楚**，再决定要不要 bootstrap。
- * 原因：V1 无条件拿着 localStorage 里的 ID 去 bootstrap，
- * 在「已注册账号 + 匿名模式关闭」的服务器上是拿不到数据的（401）。
- *
- * 降级策略保留：
- * - 匿名模式（ALLOW_ANONYMOUS=1）→ 照旧用本地 ID bootstrap；
- * - 匿名模式关闭且未登录 → 不 bootstrap，返回 `synced=false`，
- *   由路由守卫把用户送去 /login，而不是让 App 白屏或报错。
+ * 改造点（对比原 V2 useUserId）：
+ * 1. 用模块级单例 store + useSyncExternalStore：App 与首页（以及任何页面）多次调用
+ *    useUserId / useAppState，只会触发「一次」POST /api/users/bootstrap。
+ *    原实现里 App 调 POST、首页的 useAppState 又调 GET，首屏白白发 2 次。
+ * 2. 缓存优先：bootstrap 结果落地 localStorage，首屏即使后端冷启动也能立刻渲染缓存内容，
+ *    再后台静默刷新——首页不再整页「載入中…」阻塞。
+ * 3. 失败容错：网络 / 冷启动失败时不清空已渲染的缓存，仅标注 error，用户先看到旧数据。
  */
 
-import { useCallback, useEffect, useState } from 'react';
-import { ensureLocalUserId, setUserId, ApiError } from '@/api/client';
-import { apiPost } from '@/api/client';
-import { useAuth } from '@/hooks/useAuth';
+import { useCallback, useEffect, useSyncExternalStore } from 'react';
+import { ensureLocalUserId, setUserId, ApiError, apiPost, humanizeError } from '@/api/client';
+import { useAuth, getAuthSnapshot } from '@/hooks/useAuth';
 import { localLocale, localTimezone } from '@/utils/time';
 import type { BootstrapResponse } from '@/types/api';
 
-export interface UseUserIdResult {
+/** 缓存键：只存「用户 + 角色列表 + 默认角色」，不含任何 token / 密码等敏感数据 */
+const CACHE_KEY = 'xulian.bootstrap.cache.v1';
+
+export interface BootstrapState {
   userId: string;
-  /** 是否已完成与服务端的一次同步 */
   synced: boolean;
   loading: boolean;
-  /** 失败原因（人话），成功时为 null */
   error: string | null;
-  /** 服务端返回的 bootstrap 数据（含默认角色） */
   bootstrap: BootstrapResponse | null;
-  /** 当前是否已登录（语法糖，来自 useAuth） */
+  attempt: number;
+}
+
+function readCache(): BootstrapResponse | null {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<BootstrapResponse>;
+    if (parsed && parsed.user && Array.isArray(parsed.characters)) {
+      return parsed as BootstrapResponse;
+    }
+  } catch {
+    /* 缓存损坏则忽略，下次成功时重写 */
+  }
+  return null;
+}
+
+function writeCache(b: BootstrapResponse): void {
+  try {
+    localStorage.setItem(CACHE_KEY, JSON.stringify(b));
+  } catch {
+    /* 隐私模式 / 容量满：忽略，不影响内存态 */
+  }
+}
+
+const initialCache = readCache();
+let store: BootstrapState = {
+  userId: ensureLocalUserId(),
+  synced: false,
+  // 有缓存则首屏直接可渲染（不转圈）；无缓存才进入加载态
+  loading: initialCache ? false : true,
+  error: null,
+  bootstrap: initialCache,
+  attempt: 0,
+};
+
+const listeners = new Set<() => void>();
+function emit(): void {
+  for (const l of listeners) l();
+}
+function set(patch: Partial<BootstrapState>): void {
+  store = { ...store, ...patch };
+  emit();
+}
+
+export function getBootstrapSnapshot(): BootstrapState {
+  return store;
+}
+
+let inflight: Promise<void> | null = null;
+
+async function doFetch(): Promise<void> {
+  const { status, allowAnonymous, account } = getAuthSnapshot();
+  if (status === 'loading') return;
+  if (status !== 'authenticated' && !allowAnonymous) {
+    set({ loading: false, synced: false, bootstrap: null, error: '請先登入' });
+    return;
+  }
+  // 有缓存时不切回 loading，后台静默刷新即可，避免骨架闪烁
+  set({ loading: !store.bootstrap, error: null });
+  try {
+    const data = await apiPost<BootstrapResponse>(
+      '/api/users/bootstrap',
+      {
+        clientUserId: account?.user.id ?? ensureLocalUserId(),
+        timezone: localTimezone(),
+        locale: localLocale(),
+      },
+      { silent: true },
+    );
+    if (data?.user?.id) setUserId(data.user.id);
+    set({ bootstrap: data, synced: true, loading: false });
+    writeCache(data);
+  } catch (err) {
+    const msg =
+      err instanceof ApiError
+        ? err.message
+        : err instanceof Error
+          ? err.message
+          : '無法連上伺服器';
+    // 保留已有缓存内容：不因一次网络抖动把首屏清空成错误页
+    set({ synced: false, loading: false, error: msg });
+  }
+}
+
+/** 强制重新拉取 bootstrap（登录 / 登出 / 切角色后调用） */
+export function refreshBootstrap(): void {
+  if (!inflight) {
+    inflight = doFetch().finally(() => {
+      inflight = null;
+    });
+  }
+}
+
+/** 本地更新默认角色（无需重新 bootstrap 整包） */
+export function setDefaultCharacterLocal(characterId: string): void {
+  if (!store.bootstrap) return;
+  const next = { ...store.bootstrap, defaultCharacterId: characterId };
+  set({ bootstrap: next });
+  writeCache(next);
+}
+
+export interface UseUserIdResult {
+  userId: string;
+  synced: boolean;
+  loading: boolean;
+  error: string | null;
+  bootstrap: BootstrapResponse | null;
   authenticated: boolean;
-  /** 手动重试 */
   retry: () => void;
 }
 
+function subscribe(onStoreChange: () => void): () => void {
+  listeners.add(onStoreChange);
+  return () => {
+    listeners.delete(onStoreChange);
+  };
+}
+
 export function useUserId(): UseUserIdResult {
-  const { account, status, allowAnonymous } = useAuth();
-  const [userId, setLocalUserId] = useState<string>(() => ensureLocalUserId());
-  const [synced, setSynced] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [bootstrap, setBootstrap] = useState<BootstrapResponse | null>(null);
-  const [attempt, setAttempt] = useState(0);
-
-  // 已登录时以服务端的账号 ID 为准，并把 X-User-Id 同步过去
-  useEffect(() => {
-    const id = account?.user.id;
-    if (!id) return;
-    setUserId(id);
-    setLocalUserId(id);
-  }, [account?.user.id]);
+  const { status, allowAnonymous, account } = useAuth();
+  const snap = useSyncExternalStore(subscribe, getBootstrapSnapshot, getBootstrapSnapshot);
 
   useEffect(() => {
-    // 认证状态还没问清楚 → 什么都别做，等下一轮
+    // 认证状态还没问清楚 → 等下一轮（auth store 更新会触发本组件重渲染）
     if (status === 'loading') return;
-
-    // 未登录 + 服务器不允许匿名 → 明确告诉上层「没同步」，让守卫去跳登录页
-    if (status !== 'authenticated' && !allowAnonymous) {
-      setLoading(false);
-      setSynced(false);
-      setBootstrap(null);
-      setError('請先登入');
-      return;
+    // inflight 去重：多个组件同时挂载也只发一次请求
+    if (!inflight) {
+      inflight = doFetch().finally(() => {
+        inflight = null;
+      });
     }
-
-    let cancelled = false;
-
-    const run = async (): Promise<void> => {
-      setLoading(true);
-      setError(null);
-      try {
-        // 已登录时以服务端账号 ID 为准（不拿 localStorage 里的匿名 ID），
-        // 否则「登录成功后 bootstrap 仍在用匿名身份」——数据隔离会走错人。
-        const data = await apiPost<BootstrapResponse>('/api/users/bootstrap', {
-          clientUserId: account?.user.id ?? ensureLocalUserId(),
-          timezone: localTimezone(),
-          locale: localLocale(),
-        }, { silent: true });
-        if (cancelled) return;
-        if (data?.user?.id) {
-          setUserId(data.user.id);
-          setLocalUserId(data.user.id);
-        }
-        setBootstrap(data);
-        setSynced(true);
-      } catch (err) {
-        if (cancelled) return;
-        setSynced(false);
-        setError(
-          err instanceof ApiError
-            ? err.message
-            : err instanceof Error
-              ? err.message
-              : '無法連上伺服器',
-        );
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    };
-
-    void run();
-    return () => {
-      cancelled = true;
-    };
-  }, [status, allowAnonymous, account?.user.id, attempt]);
+  }, [status, allowAnonymous, account?.user.id, snap.attempt]);
 
   const retry = useCallback(() => {
-    setAttempt((n) => n + 1);
+    set({ attempt: store.attempt + 1 });
   }, []);
 
   return {
-    userId,
-    synced,
-    loading,
-    error,
-    bootstrap,
+    userId: snap.userId,
+    synced: snap.synced,
+    loading: snap.loading,
+    error: snap.error,
+    bootstrap: snap.bootstrap,
     authenticated: status === 'authenticated',
     retry,
   };
