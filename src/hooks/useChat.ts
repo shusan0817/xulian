@@ -232,11 +232,20 @@ export function useChat(options: UseChatOptions): UseChatResult {
 
         let display = streamed;
         if (event.favorability) {
-          // 好感度 / 氛围由服务端解析好随 done 事件下发，
-          // 在 updater 外调用，避免 StrictMode 双调用导致好感度翻倍
+          // 【情况 A】模型守格式、服务端解析成功 → 严格按元数据更新，用多少就是多少。
+          // ⚠️ 即使 change 是 0 也必须原样采纳：那是模型的真实判断（这轮不值得加分），
+          //    绝不能自作主张补 +1，否则就变成「模型说 0 却涨了 1」的自相矛盾。
+          // 必须在 updater 外调用，避免 StrictMode 双调用导致好感度翻倍。
           applyStructuredReply(event.favorability.change, event.favorability.emotion);
         } else {
-          // 兜底：旧版服务端没带元数据时，沿用对整段文本的解析（兼容路径）
+          // 【情况 B】done 里**根本没有** favorability 字段 —— 说明模型没按 JSON 格式输出、
+          // 服务端 parseStructuredReply 返回 null（也可能是旧版服务端还没这个字段）。
+          // 这时才走保底：applyAiReply 内部解析失败会给 +1，
+          // 心动值不会因为小模型偶尔跑偏就一直卡住不涨。
+          //
+          // ⚠️ 服务端刻意「不带整个字段」而不是「发 change:0 / emotion:null 的空壳」，
+          //    就是为了让这里能用「字段是否存在」区分 A 和 B。
+          //    如果哪天有人把服务端改成永远带字段，A/B 就废了，两种语义会混成一团。
           display = applyAiReply(streamed);
         }
 

@@ -390,18 +390,28 @@ export async function* streamChat(
 
   // ---------- 11. 好感度 / 氛围元数据（走 done 事件，不让用户看见） ----------
   // 只在内容安全通过时才采纳模型给的好感度与氛围，避免被拦截的内容还能加分。
-  // 解析失败 / 模型没按格式输出时静默降级为 0 / null，绝不把错误抛给用户。
+  //
+  // ⚠️ 语义约定（与前端 useChat.ts 的 done 分支配套，改这里务必同步改前端）：
+  //   A. 模型守格式、解析成功 → **带上** favorability 字段。
+  //      即使模型明确给了 change: 0，也要原样带上——那是模型的真实判断，必须尊重，不能强加 +1。
+  //   B. 模型没守格式、解析失败 → **整个字段都不带**（而不是发 change:0 / emotion:null 的空壳）。
+  //      前端靠「字段存在与否」区分 A / B：没有字段就走 applyAiReply 的 +1 保底。
+  //      一旦发了空壳，前端就无法区分「模型说 0」和「压根没拿到元数据」。
+  // 任何解析异常都静默降级，绝不把 JSON Parse Error / undefined 之类抛给用户。
   const structured = outgoing.safe ? parseStructuredReply(full) : null;
-  const rawChange = structured?.change ?? 0;
-  const change = Number.isFinite(rawChange) ? Math.max(-10, Math.min(10, rawChange)) : 0;
-  const emotion = structured?.emotion ?? null;
 
-  yield {
-    type: 'done',
-    messageId: assistantMessage.id,
-    usage,
-    favorability: { change, emotion },
-  };
+  if (structured) {
+    const rawChange = structured.change;
+    const change = Number.isFinite(rawChange) ? Math.max(-10, Math.min(10, rawChange)) : 0;
+    yield {
+      type: 'done',
+      messageId: assistantMessage.id,
+      usage,
+      favorability: { change, emotion: structured.emotion },
+    };
+  } else {
+    yield { type: 'done', messageId: assistantMessage.id, usage };
+  }
 }
 
 // ============================================================
