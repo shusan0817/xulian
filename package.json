@@ -11,6 +11,7 @@
     "server": "tsx server/index.ts",
     "typecheck": "tsc --noEmit",
     "smoke": "tsx scripts/smoke-db.ts",
+    "db:migrate-turso": "tsx scripts/migrate-to-turso.ts",
     "push:keys": "tsx scripts/gen-vapid-keys.ts"
   },
   "dependencies": {

@@ -18,7 +18,7 @@ import { env, isAiConfigured, validateEnv, maskSecret } from './env.js';
 import { logger } from './logger.js';
 import { errorHandler } from './errors.js';
 import { apiRoutes } from './routes/index.js';
-import { closeDb } from './db/index.js';
+import { closeDb, dbMode, dbTarget } from './db/index.js';
 import { startScheduler, stopScheduler } from './services/proactive/scheduler.js';
 import { APP_NAME, APP_VERSION } from '../shared/constants.js';
 
@@ -106,7 +106,9 @@ function printBanner(port: number): void {
     env.host === '0.0.0.0' ? '0.0.0.0（所有网络接口，局域网/公网可访问）' : env.host;
   logger.info(`  监听地址  : ${bindNote}:${port}`, {});
   logger.info(`  CORS 来源 : ${env.corsOrigins.length ? env.corsOrigins.join(', ') : '（仅同源）'}`, {});
-  logger.info(`  数据库    : ${env.dbPath}`, {});
+  // 云端模式（Turso）下 env.dbPath 并不生效，这里显示真实使用的连接，避免误判数据落在哪
+  const dbLabel = dbMode === 'turso' ? `${dbTarget}（Turso 云端）` : `${env.dbPath}（本地文件）`;
+  logger.info(`  数据库    : ${dbLabel}`, {});
   logger.info(
     `  AI 已配置 : ${isAiConfigured()}  (供應商=${env.aiProvider} · 模型=${
       env.aiProvider === 'openai' ? env.openaiModel : env.ollamaModel
