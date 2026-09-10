@@ -50,6 +50,39 @@ interface AiReplyShape {
 }
 
 /**
+ * 用**服务端已经解析好的**结构化元数据更新好感度 / 氛围。
+ *
+ * 新版服务端在 SSE `done` 事件里附带 `favorability: { change, emotion }`，
+ * 流式正文本身早已是纯文本（JSON 外壳在服务端就被剥掉了），
+ * 所以这里不需要、也不应该再对正文做 JSON 解析。
+ *
+ * 同样必须在 React state updater 之外调用，避免 StrictMode 双调用导致好感度翻倍。
+ *
+ * @param change 好感度增减（服务端已夹在 -10..10，这里再按前端惯例夹到 [-5, 5]）
+ * @param emotion 氛围名；不在白名单内或为 null 时保持当前氛围不变
+ */
+export function applyStructuredReply(change: number, emotion: string | null): void {
+  // 与 applyAiReply 保持一致：硬性钳制在 [-5, 5]
+  const rawDelta = Number(change);
+  const delta = Number.isFinite(rawDelta) ? clamp(rawDelta, -5, 5) : 0;
+  const emo =
+    typeof emotion === 'string' && (VALID_EMOTIONS as string[]).includes(emotion)
+      ? (emotion as AtmosphereEmotion)
+      : null;
+
+  const nextFav = clamp(Math.round(state.favorability + delta), 0, 100);
+  const nextAtm = emo ?? state.atmosphere;
+  const changed = nextFav !== state.favorability || nextAtm !== state.atmosphere;
+
+  state = {
+    favorability: nextFav,
+    atmosphere: nextAtm,
+    pulse: changed ? state.pulse + 1 : state.pulse,
+  };
+  emit();
+}
+
+/**
  * 解析 AI 响应文本并更新好感度/氛围。
  * 返回用于聊天气泡展示的文本：解析成功=reply，失败=原始文本（兜底）。
  * 务必在 React state updater 之外调用，避免 StrictMode 双调用导致好感度翻倍。

@@ -13,7 +13,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { apiDelete, apiGet, humanizeError } from '@/api/client';
 import { postSse } from '@/api/sse';
-import { applyAiReply, extractReply } from '@/store/favorabilityStore';
+import { applyAiReply, applyStructuredReply, extractReply } from '@/store/favorabilityStore';
 import type { ChatSseEvent, SseStage } from '@shared/sse';
 import type { EmotionType, MemoryCategory, RelationshipStage, StrategyType } from '@shared/constants';
 import type { MessageRecord } from '@shared/types';
@@ -85,6 +85,11 @@ export function useChat(options: UseChatOptions): UseChatResult {
   const controllerRef = useRef<AbortController | null>(null);
   const lastUserText = useRef<string>('');
   const streamingIdRef = useRef<string | null>(null);
+  /**
+   * 累积本轮助手的流式文本。
+   * 新版服务端已在 streamReplyExtractor 里剥掉 JSON 外壳，
+   * 这里存的就是可以直接展示的纯文本（旧版服务端则可能是原始 JSON，由 done 兜底解析）。
+   */
   const rawReplyRef = useRef<string>('');
 
   // 切换角色时清空会话
@@ -221,11 +226,24 @@ export function useChat(options: UseChatOptions): UseChatResult {
 
       case 'done': {
         const id = streamingIdRef.current;
-        const raw = rawReplyRef.current;
+        // 新版服务端：text 事件已经是剥掉 JSON 外壳的纯文本，直接作为展示内容
+        const streamed = rawReplyRef.current;
         rawReplyRef.current = '';
-        const display = applyAiReply(raw); // 在 updater 外调用，避免 StrictMode 双调用导致好感度翻倍
+
+        let display = streamed;
+        if (event.favorability) {
+          // 好感度 / 氛围由服务端解析好随 done 事件下发，
+          // 在 updater 外调用，避免 StrictMode 双调用导致好感度翻倍
+          applyStructuredReply(event.favorability.change, event.favorability.emotion);
+        } else {
+          // 兜底：旧版服务端没带元数据时，沿用对整段文本的解析（兼容路径）
+          display = applyAiReply(streamed);
+        }
+
         setMessages((prev) =>
-          prev.map((m) => (m.id === id ? { ...m, content: display, streaming: false } : m)),
+          prev.map((m) =>
+            m.id === id ? { ...m, content: display || m.content, streaming: false } : m,
+          ),
         );
         streamingIdRef.current = null;
         setStage(null);
