@@ -151,8 +151,14 @@ export interface Env {
 
   // ---- 其他 ----
   appTz: string;
-  /** 数据库文件路径 */
+  /** 数据库文件路径（本地文件模式下的 SQLite 位置） */
   dbPath: string;
+
+  // ---- Turso / libSQL 云端数据库 ----
+  /** Turso 数据库地址（libsql://xxx.turso.io）；留空则用本地文件 */
+  tursoUrl: string;
+  /** Turso 访问令牌；与 tursoUrl 同时非空才会启用云端模式 */
+  tursoAuthToken: string;
 }
 
 export const env: Env = {
@@ -209,7 +215,24 @@ export const env: Env = {
 
   appTz: str('APP_TZ', 'Asia/Taipei'),
   dbPath: str('XULIAN_DB_PATH', path.join(DATA_DIR, 'xulian.db')),
+
+  // ---- Turso / libSQL 云端数据库（持久化关键）----
+  // Render 免费实例的文件系统是临时盘，重启/重新部署会清空 server/data/xulian.db。
+  // 配好这两个变量后，数据库走云端 libSQL，数据不再丢失。
+  // 两个变量必须**同时**非空才会启用；缺任一都自动回落到本地文件模式（行为不变）。
+  /** Turso 数据库地址，形如 libsql://your-db-org.turso.io */
+  tursoUrl: str('TURSO_DATABASE_URL', ''),
+  /** Turso 访问令牌（turso db tokens create <db> 生成） */
+  tursoAuthToken: str('TURSO_AUTH_TOKEN', ''),
 };
+
+/**
+ * 是否启用 Turso 云端数据库。
+ * URL 与 Token 必须同时非空——只配一个说明配置漏了，此时保持本地模式更安全。
+ */
+export function isTursoEnabled(): boolean {
+  return Boolean(env.tursoUrl && env.tursoAuthToken);
+}
 
 // ------------------------------------------------------------
 // 4. 校验与脱敏输出
@@ -299,6 +322,16 @@ export function validateEnv(): EnvIssue[] {
       message:
         '生產環境未設定 CORS_ORIGIN。若前端與 API 部署在同一域名（後端直接托管前端），同源無需 CORS；' +
         '若前端在別的域名（如 GitHub Pages / CDN），必須設定 CORS_ORIGIN 為該域名，否則瀏覽器會攔截 API 請求。',
+    });
+  }
+  // Turso 只配了 URL 或只配了 Token：不会启用云端模式，很容易让人误以为「已经持久化了」。
+  if (Boolean(env.tursoUrl) !== Boolean(env.tursoAuthToken)) {
+    issues.push({
+      level: 'warn',
+      key: 'TURSO_DATABASE_URL',
+      message: env.tursoUrl
+        ? '已設定 TURSO_DATABASE_URL 但缺少 TURSO_AUTH_TOKEN，資料庫已回落到本地檔案模式（重啟會丟資料）。'
+        : '已設定 TURSO_AUTH_TOKEN 但缺少 TURSO_DATABASE_URL，資料庫已回落到本地檔案模式（重啟會丟資料）。',
     });
   }
   return issues;
