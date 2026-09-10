@@ -59,8 +59,13 @@ export type ChatSseEvent =
   | { type: 'story'; action: 'added' | 'updated'; items: Array<{ id: string; title: string; type: string }> }
   /** 关系更新（升级时前端放小动画） */
   | { type: 'relationship'; stage: RelationshipStage; interactionLevel: number; leveledUp: boolean }
-  /** 正常结束 */
-  | { type: 'done'; messageId: string; usage?: SseUsage }
+  /** 正常结束（附带好感度/氛围元数据，前端据此更新心动值卡片，不展示给用户） */
+  | {
+      type: 'done';
+      messageId: string;
+      usage?: SseUsage;
+      favorability?: { change: number; emotion: string | null };
+    }
   /** 出错（前端显示重试按钮） */
   | { type: 'error'; code: string; message: string; retryable: boolean };
 

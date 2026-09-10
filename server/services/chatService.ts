@@ -27,6 +27,7 @@ import { normalizeChatMode } from '../../shared/constants.js';
 import { buildSystemPrompt, buildUserPrompt } from '../agent/prompts.js';
 import { streamText } from '../agent/sdkClient.js';
 import { SdkCallError } from '../agent/errors.js';
+import { createStreamReplyExtractor, parseStructuredReply } from './streamReplyExtractor.js';
 
 import * as conversationsRepo from '../db/repositories/conversations.repo.js';
 import * as usersRepo from '../db/repositories/users.repo.js';
@@ -264,23 +265,40 @@ export async function* streamChat(
 
   // ---------- 7. 流式生成 ----------
   yield stageEvent('generating');
+  /** 模型原始输出（可能是结构化 JSON），仅用于结束后解析元数据 */
   let full = '';
+  /** 剥掉 JSON 外壳后的纯文本正文：安全检查、落库、展示都基于它 */
+  let replyText = '';
   let usage: { inputTokens: number; outputTokens: number; durationMs: number } | undefined;
 
   try {
     const iterator = streamText(
       { prompt: userPrompt, systemPrompt, label: 'chat', signal },
     );
+    const extractor = createStreamReplyExtractor();
     let next = await iterator.next();
     while (!next.done) {
       const delta = next.value.delta;
       if (delta) {
         full += delta;
-        yield { type: 'text', content: delta };
+        // 只把「纯文本增量」推给前端：JSON 外壳在这里剥掉，
+        // 用户看到的是「你」→「你好」→「你好，今天」逐字增长，而不是 JSON 原文。
+        const inc = extractor.push(delta);
+        if (inc) {
+          replyText += inc;
+          yield { type: 'text', content: inc };
+        }
       }
       next = await iterator.next();
     }
     if (next.value?.usage) usage = next.value.usage;
+
+    // 收尾：补发提取器里可能残留的内容（正常 JSON 流程这里为空字符串）
+    const tail = extractor.finish();
+    if (tail) {
+      replyText += tail;
+      yield { type: 'text', content: tail };
+    }
   } catch (err) {
     const sdkErr =
       err instanceof SdkCallError ? err : new Error(err instanceof Error ? err.message : String(err));
@@ -303,21 +321,22 @@ export async function* streamChat(
   }
 
   // ---------- 8. 出方向安全检查（硬闸） ----------
-  const outgoing = safetyService.checkOutgoing(userId, characterId, full);
-  let finalText = full;
+  // 出方向检查必须基于「纯文本 reply」，而不是原始 JSON
+  const outgoing = safetyService.checkOutgoing(userId, characterId, replyText);
+  let finalText = replyText;
 
   if (!outgoing.safe) {
     if (outgoing.text) {
       finalText = outgoing.text;
       yield { type: 'replace', content: finalText };
     } else {
-      finalText = safetyService.pickFallback(full.length);
+      finalText = safetyService.pickFallback(replyText.length);
       yield { type: 'replace', content: finalText };
     }
   }
 
   if (!finalText.trim()) {
-    finalText = safetyService.pickFallback(full.length);
+    finalText = safetyService.pickFallback(replyText.length);
     yield { type: 'replace', content: finalText };
   }
 
@@ -369,7 +388,20 @@ export async function* streamChat(
 
   for (const e of postEvents) yield e;
 
-  yield { type: 'done', messageId: assistantMessage.id, usage };
+  // ---------- 11. 好感度 / 氛围元数据（走 done 事件，不让用户看见） ----------
+  // 只在内容安全通过时才采纳模型给的好感度与氛围，避免被拦截的内容还能加分。
+  // 解析失败 / 模型没按格式输出时静默降级为 0 / null，绝不把错误抛给用户。
+  const structured = outgoing.safe ? parseStructuredReply(full) : null;
+  const rawChange = structured?.change ?? 0;
+  const change = Number.isFinite(rawChange) ? Math.max(-10, Math.min(10, rawChange)) : 0;
+  const emotion = structured?.emotion ?? null;
+
+  yield {
+    type: 'done',
+    messageId: assistantMessage.id,
+    usage,
+    favorability: { change, emotion },
+  };
 }
 
 // ============================================================
