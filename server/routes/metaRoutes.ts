@@ -18,7 +18,7 @@ import {
   APP_VERSION,
 } from '../../shared/constants.js';
 import { env, isAiConfigured } from '../env.js';
-import { dbHealth } from '../db/index.js';
+import { dbHealth, dbMode } from '../db/index.js';
 import { asyncHandler } from '../errors.js';
 import { ok } from '../http.js';
 import type { ConfigResponse, HealthResponse } from '../types.js';
@@ -33,13 +33,17 @@ export const metaRoutes = Router();
 metaRoutes.get(
   '/health',
   asyncHandler((_req, res) => {
+    // dbHealth() 只调一次，避免健康检查变成两条额外查询
+    const healthy = dbHealth();
     const body: HealthResponse = {
-      status: dbHealth() ? 'ok' : 'degraded',
+      status: healthy ? 'ok' : 'degraded',
       time: new Date().toISOString(),
       version: APP_VERSION,
       aiConfigured: isAiConfigured(),
       ollamaConfigured: isAiConfigured(),
-      database: dbHealth(),
+      database: healthy,
+      // 只回 'local' | 'turso' 枚举值，不含数据库地址等基础设施信息
+      dbMode,
     };
     ok(res, body);
   }),

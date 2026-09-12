@@ -30,6 +30,9 @@ import type { ChatSseEvent } from '@shared/sse';
 export type { ChatSseEvent };
 
 // ---- /api/health ----
+/** 数据库模式：'local' = 本地文件（重启会丢数据）；'turso' = 云端 libSQL（持久化生效） */
+export type DbMode = 'local' | 'turso';
+
 export interface HealthResponse {
   status: 'ok' | 'degraded';
   time: string;
@@ -37,6 +40,11 @@ export interface HealthResponse {
   aiConfigured: boolean;
   ollamaConfigured: boolean;
   database: boolean;
+  /**
+   * 与 server/types.ts 的 HealthResponse.dbMode 保持一致（前端无法 import server 侧类型，故在此镜像）。
+   * 后端只回这个枚举值，不返回数据库地址。
+   */
+  dbMode: DbMode;
 }
 
 // ---- /api/config ----

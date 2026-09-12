@@ -26,6 +26,7 @@ import type {
   ConversationState,
 } from '../shared/constants.js';
 import type { HabitPromptItem } from './agent/prompts.js';
+import type { DbMode } from './db/driver.js';
 
 // ============================================================
 // 运行期上下文
@@ -106,6 +107,12 @@ export interface HealthResponse {
   /** Ollama 是否已配置（baseUrl + model 同时存在） */
   ollamaConfigured: boolean;
   database: boolean;
+  /**
+   * 数据库当前实际使用的模式：'local' = 本地文件（重启会丢数据）；'turso' = 云端 libSQL（持久化生效）。
+   * 只暴露这个枚举值即可让用户自查持久化是否生效；
+   * **绝不暴露 dbTarget**（完整的 libsql://xxx.turso.io 地址属于基础设施信息）。
+   */
+  dbMode: DbMode;
 }
 
 export interface AppMeta {
