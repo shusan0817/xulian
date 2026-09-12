@@ -29,6 +29,20 @@ import { apiPost } from '@/api/client';
 import { EMOTION_ANCHORS, STAGE_META } from '@shared/constants';
 import { formatRelativeTime } from '@/utils/time';
 
+/**
+ * 首页标题旁的 Beta 标识。
+ *
+ * 品牌审美是极简黑白：1px 细边框 + 10px 小字 + 字距放开 + 次要文字色，
+ * 刻意不做彩色胶囊、不做药丸圆角、不加图标 emoji，避免喧宾夺主。
+ */
+function BetaBadge(): React.ReactElement {
+  return (
+    <span className="inline-flex items-center rounded-[3px] border border-[var(--xl-sub)]/40 px-1 py-px text-[10px] font-medium leading-none tracking-[0.1em] text-[var(--xl-sub)]">
+      Beta
+    </span>
+  );
+}
+
 export function HomePage(): React.ReactElement {
   const navigate = useNavigate();
   const { characters, defaultCharacterId, loading, error } = useAppState();
@@ -97,6 +111,7 @@ export function HomePage(): React.ReactElement {
         title="需戀"
         subtitle="一個記得你、也懂你的陪伴角色"
         showBack={false}
+        titleBadge={<BetaBadge />}
       />
 
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-3 xl-no-scrollbar">

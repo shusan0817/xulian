@@ -55,7 +55,12 @@ export function LoginPage(): React.ReactElement {
           </div>
         </AuthForm>
 
-        <p className="mt-6 text-center text-[11px] leading-relaxed text-[var(--xl-sub)]/70">
+        {/* 试玩提示：沿用本页既有的直白语气（跟「忘記密碼的功能還沒做」同一种），不包装 */}
+        <p className="mt-5 text-center text-[11px] leading-relaxed text-[var(--xl-sub)]/80">
+          這是測試版本，資料不保證永久保存。
+        </p>
+
+        <p className="mt-2 text-center text-[11px] leading-relaxed text-[var(--xl-sub)]/70">
           忘記密碼的功能還沒做（排在 P3）。
           <br />
           目前如果真的忘了，只能重新註冊一個帳號。

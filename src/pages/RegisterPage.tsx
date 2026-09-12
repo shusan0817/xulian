@@ -85,6 +85,19 @@ export function RegisterPage(): React.ReactElement {
           </Link>
         </div>
 
+        {/*
+          安全提示：试玩站的数据存在临时盘、随时可能被清除，
+          所以必须提醒用户不要复用其他网站的常用密码。
+          视觉上比下方灰色小字略醒目（细边框 + 主文字色 + 关键句加粗），
+          但刻意不用红色报错样式，避免吓人。
+        */}
+        <div className="mt-5 rounded-xl border border-[var(--xl-sub)]/30 bg-[var(--xl-mist)]/40 px-3 py-2.5">
+          <p className="text-[12px] leading-relaxed text-[var(--xl-ink)]">
+            這是測試版本，資料可能隨時被清除。
+            <span className="font-semibold">請不要使用你其他網站常用的密碼。</span>
+          </p>
+        </div>
+
         <p className="mt-6 text-[11px] leading-relaxed text-[var(--xl-sub)]/70">
           註冊後你隨時可以在「設定 → 帳號」裡改密碼、查看登入的裝置，或刪除全部資料。
         </p>

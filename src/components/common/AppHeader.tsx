@@ -21,6 +21,11 @@ export interface AppHeaderProps {
   right?: ReactNode;
   /** 标题下方的副标题 */
   subtitle?: string;
+  /**
+   * 标题右侧的小标记（如首页的 Beta 标识）。
+   * 可选：不传时完全不渲染，对既有页面零影响。
+   */
+  titleBadge?: ReactNode;
 }
 
 export function AppHeader({
@@ -29,6 +34,7 @@ export function AppHeader({
   onBack,
   right,
   subtitle,
+  titleBadge,
 }: AppHeaderProps): React.ReactElement {
   const navigate = useNavigate();
 
@@ -51,7 +57,10 @@ export function AppHeader({
         )}
 
         <div className="min-w-0 flex-1 text-center">
-          <h1 className="truncate text-[16px] font-semibold text-[var(--xl-ink)]">{title}</h1>
+          <h1 className="truncate text-[16px] font-semibold text-[var(--xl-ink)]">
+            {title}
+            {titleBadge ? <span className="ml-1.5 align-middle">{titleBadge}</span> : null}
+          </h1>
           {subtitle ? (
             <p className="truncate text-[11px] text-[var(--xl-sub)]">{subtitle}</p>
           ) : null}
